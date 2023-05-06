@@ -1,0 +1,10 @@
+*.egg*
+*.pyc
+*swp
+*phyx*
+build/
+tests
+*.c
+*.so
+*.html
+*.R*
