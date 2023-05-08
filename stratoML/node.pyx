@@ -23,8 +23,8 @@ cdef class Node:
     cdef public str label
     cdef public object parent
     cdef public list children
-    cdef public long[:] disc_starts
-    cdef public long[:] disc_states
+    #cdef public long[:] disc_starts
+    cdef public long[:] disc_traits
     cdef public double[:] strat
     #cdef public double[:] cont_traits
 
@@ -40,11 +40,16 @@ cdef class Node:
         self.lower = 0.0
         self.num_occurrences = 0
         self.strat = np.array([0.0,0.0],dtype=np.double)
-        self.disc_starts = np.array([],dtype=int)
-        self.disc_states = np.array([],dtype=int)
+        #self.disc_starts = np.array([],dtype=int)
+        self.disc_traits = np.array([],dtype=int)
         #self.cont_traits = np.array([],dtype=np.double)
 
     def add_disc_traits(self, list traitls):
+        self.disc_traits = np.array(traitls,dtype=int)
+        print(traitls)
+        print(self.disc_traits)
+
+    """def add_disc_traits(self, list traitls):
         N = sum(map(len, traitls))
         #starts = np.empty(N, dtype=int) 
         starts = np.empty(len(traitls)+1, dtype=int) 
@@ -57,15 +62,13 @@ cdef class Node:
                 cnt += 1       # update index in the flattened array for the next element
             starts[i+1] = cnt  # remember the start of the next list
         
-        """
         print(starts)
         print(type(starts))
         print(traits)
         print(np.array([starts,traits],dtype=int))
-        """
         #self.disc_traits = np.array([starts,traits],dtype=int)
         self.disc_starts = starts
-        self.disc_states = traits
+        self.disc_states = traits"""
 
     def get_newick_repr(self,showbl=False,show_rate=False):
         ret = ""

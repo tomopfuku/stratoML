@@ -18,6 +18,10 @@ extensions = [
         "stratoML.mfc",
         ["stratoML/mfc.pyx"],
     ),
+    Extension(
+        "stratoML.smaps",
+        ["stratoML/smaps.pyx"],
+    ),
 
 ]
 

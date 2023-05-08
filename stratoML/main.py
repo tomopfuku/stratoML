@@ -11,6 +11,7 @@ print(len(test.disc_traits))
 print(list(test.disc_traits[0]))
 print(list(test.disc_traits[1]))"""
 
+
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("usage: "+ sys.argv[0]+ " <tree table file> <trait fasta file>")
@@ -18,11 +19,17 @@ if __name__ == "__main__":
 
     traits,ss = read_fasta.read_fasta(sys.argv[2])
     #print(traits)
-    print(ss)
+    retraits = read_fasta.recode_poly_traits(traits,ss)
     tree = tree_reader.read_tree_table(sys.argv[1])
     print(tree)
-    tree_utils.map_tree_disc_traits(tree,traits)
-    qmat,smap = mfc.create_q_matrix(3, 0.1, 0.3)
+    tree_utils.map_tree_disc_traits(tree,retraits)
+
+    qmat,smap = mfc.create_q_matrix(2, 0.1, 0.3)
     pmat = mfc.calc_p_matrix(qmat,.5)
     for i in pmat:
         print(list(i))
+
+    #allst = all_bs(3)
+    #print(allst)
+
+

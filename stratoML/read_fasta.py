@@ -1,5 +1,36 @@
 import sys
 import numpy as np
+import smaps
+
+def recode_poly_traits(traits,ss):
+    retraits = {}
+    for n in traits:
+        curtr = traits[n]
+        new = []
+        for i,tr in enumerate(curtr):
+            if tr[0] == -9:
+                new.append(-9)
+                continue
+            curss = ss[i]
+            if curss < 2:
+                new.append(0)
+                continue
+            smap = smaps.get_smap(curss)
+            retr = -9
+            for ii,row in enumerate(smap):
+                #print(list(row))
+                allpres = True
+                for j in tr:
+                    if row[j] == 0:
+                        allpres = False
+                if allpres == True and sum(row) == len(tr):
+                    retr = ii
+            new.append(retr)
+            #print(tr,retr)
+        retraits[n] = new
+        #print(n,curtr)
+        #print(n,new)
+    return retraits
 
 def read_fasta(flnm):
     fl = open(flnm,"r")
@@ -32,7 +63,7 @@ def read_fasta(flnm):
     state_spaces = []
     for i in range(len(allstates)):
         curst = set(allstates[i])
-        state_spaces.append(len(curst))
+        state_spaces.append(max(curst)+1)
     return traits, np.array(state_spaces,dtype=int)
 
 

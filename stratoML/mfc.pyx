@@ -4,31 +4,10 @@ np.import_array()
 cimport cython
 import sys
 from scipy.linalg import expm
+import smaps
 
 #@cython.wraparound(False)
 #@cython.boundscheck(False)
-
-cdef long[:,:] twostate,threestate,fourstate
-twostate = np.array([[0,0],[0,1],[1,0],[1,1]],dtype=int)
-threestate = np.array([[0,0,0],[1,0,0],[0,1,0],[0,0,1],[1,1,0],[0,1,1],[1,0,1],[1,1,1]],dtype=int)
-fourstate = np.array([
-    [0,0,0,0],
-    [1,0,0,0],
-    [0,1,0,0],
-    [0,0,1,0],
-    [0,0,0,1],
-    [1,1,0,0],
-    [1,0,1,0],
-    [1,0,0,1],
-    [0,1,1,0],
-    [0,0,1,1],
-    [0,1,0,1],
-    [1,1,1,0],
-    [0,1,1,1],
-    [1,0,1,1],
-    [1,1,0,1],
-    [1,1,1,1]
-],dtype=int)
 
 def mat_mult(double[:,:] mat, double m):
     cdef int i,j,nrow
@@ -46,29 +25,18 @@ def calc_p_matrix(double[:,:] qmat, double t):
     pmat = expm(mat_mult(qmat,t))
     return pmat
 
-def create_q_matrix(int nstates,double m, double l):
+def create_q_matrix(int nstates, double m, double l):
     cdef double[:,:] qmat
+    cdef long[:,:] smap
     cdef int matsize
-    matsize = 2**nstates
+    smap = smaps.get_smap(nstates)
+    matsize = len(smap) #2**nstates
     qmat = np.zeros((matsize,matsize),dtype=np.double)
-    smap = statemap(nstates)
     update_mut_loss(qmat,smap,m,l)
     #for row in qmat:
     #    print(list(row))                    
     
     return qmat, smap
-
-def statemap(int nstates):
-    cdef long[:,:] smap
-    if nstates == 2:
-        smap = twostate
-    elif nstates == 3:
-        smap = threestate
-    elif nstates == 4:
-        smap = fourstate
-    return smap
-
-
 
 def update_mut_loss(double[:,:] qmat, long[:,:] smap, double m, double l):
     cdef int i, j, ii, ndiff, nrow, nsti, nstj, nstates 
@@ -81,9 +49,7 @@ def update_mut_loss(double[:,:] qmat, long[:,:] smap, double m, double l):
             if i != j:
                 ndiff = 0
                 for ii in range(nstates):
-                    if smap[i][ii] == smap[j][ii]:
-                        continue
-                    else:
+                    if smap[i][ii] != smap[j][ii]:
                         ndiff += 1
                 nsti = np.add.reduce(smap[i])
                 nstj = np.add.reduce(smap[j])
@@ -96,5 +62,3 @@ def update_mut_loss(double[:,:] qmat, long[:,:] smap, double m, double l):
 
     for i in range(nrow):
         qmat[i][i] = -np.add.reduce(qmat[i])
-
-
