@@ -1,10 +1,19 @@
 #from libcpp cimport bool
 #from copy import deepcopy
 import numpy as np
+cimport numpy as np
+np.import_array()
+cimport cython
+#from cpython cimport array
+#import array
+
 
 cdef:
     unsigned int PREORDER = 0
     unsigned int POSTORDER = 1
+
+@cython.wraparound(False)
+@cython.boundscheck(False)
 
 cdef class Node:
     #cdef public dict data
@@ -14,6 +23,9 @@ cdef class Node:
     cdef public str label
     cdef public object parent
     cdef public list children
+    cdef public long[:] disc_starts
+    cdef public long[:] disc_states
+    cdef public double[:] strat
     #cdef public double[:] cont_traits
 
     def __init__(self):
@@ -27,7 +39,33 @@ cdef class Node:
         self.upper = 0.0
         self.lower = 0.0
         self.num_occurrences = 0
+        self.strat = np.array([0.0,0.0],dtype=np.double)
+        self.disc_starts = np.array([],dtype=int)
+        self.disc_states = np.array([],dtype=int)
         #self.cont_traits = np.array([],dtype=np.double)
+
+    def add_disc_traits(self, list traitls):
+        N = sum(map(len, traitls))
+        #starts = np.empty(N, dtype=int) 
+        starts = np.empty(len(traitls)+1, dtype=int) 
+        traits = np.empty(N, dtype=int)
+
+        starts[0], cnt = 0, 0
+        for i,states in enumerate(traitls):
+            for el in states:
+                traits[cnt] = el
+                cnt += 1       # update index in the flattened array for the next element
+            starts[i+1] = cnt  # remember the start of the next list
+        
+        """
+        print(starts)
+        print(type(starts))
+        print(traits)
+        print(np.array([starts,traits],dtype=int))
+        """
+        #self.disc_traits = np.array([starts,traits],dtype=int)
+        self.disc_starts = starts
+        self.disc_states = traits
 
     def get_newick_repr(self,showbl=False,show_rate=False):
         ret = ""
@@ -51,7 +89,7 @@ cdef class Node:
         assert child not in self.children
         self.children.append(child)
         child.parent = self
-        self.nchildren += 1
+        #self.nchildren += 1
 
     def remove_child(self, object child):
         assert child in self.children
@@ -70,30 +108,16 @@ cdef class Node:
 
     def iternodes(self, unsigned int order=PREORDER):#, v=None):
         cdef:
-            object child, d
+            object i, d
 
         if order == PREORDER:
             yield self
         #print [i.label for i in self.children]
-        for child in self.children:
-            for d in child.iternodes(order):
+        for i in range(len(self.children)):
+            for d in self.children[i].iternodes(order):
                 yield d
         if order == POSTORDER:
             yield self
-
-
-    def descendants(self, order=PREORDER, v=None):
-        if v is None:
-            v = []
-        #assert order in ("PREORDER", "POSTORDER")
-        for child in self.children:
-            if order == PREORDER:
-                v.append(child)
-            else:
-                v.insert(0, child)
-            if child.children:
-                child.descendants(order, v)
-        return v
 
     def prune(self):
         p = self.parent

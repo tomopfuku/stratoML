@@ -13,15 +13,11 @@ extensions = [
     Extension(
         "stratoML.node",
         ["stratoML/node.pyx"],
-        #include_dirs=['/some/path/to/include/'], # not needed for fftw unless it is installed in an unusual place
-        #libraries=['fftw3', 'fftw3f', 'fftw3l', 'fftw3_threads', 'fftw3f_threads', 'fftw3l_threads'],
-        #library_dirs=['/some/path/to/include/'], # not needed for fftw unless it is installed in an unusual place
     ),
-    #"""Extension(
-    #    "mandos.calc_bm_likelihood",
-    #    ["mandos/calc_bm_likelihood.pyx"],
-    #    include_dirs=[numpy.get_include()],
-    #),"""
+    Extension(
+        "stratoML.mfc",
+        ["stratoML/mfc.pyx"],
+    ),
 
 ]
 
