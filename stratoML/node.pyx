@@ -12,8 +12,8 @@ cdef:
     unsigned int PREORDER = 0
     unsigned int POSTORDER = 1
 
-@cython.wraparound(False)
-@cython.boundscheck(False)
+#@cython.wraparound(False)
+#@cython.boundscheck(False)
 
 cdef class Node:
     #cdef public dict data
@@ -46,8 +46,8 @@ cdef class Node:
 
     def add_disc_traits(self, list traitls):
         self.disc_traits = np.array(traitls,dtype=int)
-        print(traitls)
-        print(self.disc_traits)
+        #print(traitls)
+        #print(self.disc_traits)
 
     """def add_disc_traits(self, list traitls):
         N = sum(map(len, traitls))
@@ -70,12 +70,14 @@ cdef class Node:
         self.disc_starts = starts
         self.disc_states = traits"""
 
-    def get_newick_repr(self,showbl=False,show_rate=False):
+    def get_newick_repr(self, bint showbl=False):
+        cdef unsigned int i
+        cdef str ret
         ret = ""
         for i in range(len(self.children)):
             if i == 0:
                 ret += "("
-            ret += self.children[i].get_newick_repr(showbl,show_rate)
+            ret += self.children[i].get_newick_repr(showbl)
             if i == len(self.children)-1:
                 ret += ")"
             else:
@@ -84,8 +86,6 @@ cdef class Node:
             ret += self.label
         if showbl == True:
             ret += ":" + str(self.length)
-        if show_rate ==True:
-            ret += ":" + str(self.sigsq)
         return ret
 
     def add_child(self, object child):
@@ -111,14 +111,15 @@ cdef class Node:
 
     def iternodes(self, unsigned int order=PREORDER):#, v=None):
         cdef:
-            object i, d
+            unsigned int i
+            Node d
 
         if order == PREORDER:
             yield self
         #print [i.label for i in self.children]
         for i in range(len(self.children)):
             for d in self.children[i].iternodes(order):
-                yield d
+                yield d #self.children[i][d]
         if order == POSTORDER:
             yield self
 

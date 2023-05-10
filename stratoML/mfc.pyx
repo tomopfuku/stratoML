@@ -1,3 +1,5 @@
+import node
+cimport node
 import numpy as np
 cimport numpy as np
 np.import_array()
@@ -13,8 +15,8 @@ def mat_mult(double[:,:] mat, double m):
     cdef int i,j,nrow
     nrow = len(mat)
     cdef double[:,:] newmat = np.empty((nrow,nrow),dtype = np.double)
-    for i in range(len(mat)):
-        for j in range(len(mat)):
+    for i in range(nrow):
+        for j in range(nrow):
             newmat[i][j] = mat[i][j] * m
     return newmat
 
@@ -62,3 +64,11 @@ def update_mut_loss(double[:,:] qmat, long[:,:] smap, double m, double l):
 
     for i in range(nrow):
         qmat[i][i] = -np.add.reduce(qmat[i])
+
+def mfc_treelike(node.Node tree, long[:] ss):
+    #cdef long[:,:] smap
+    cdef double[:,:] qmat
+    cdef node.Node n
+    for n in tree.iternodes(1):
+        print(n)
+    return

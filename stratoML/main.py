@@ -24,10 +24,14 @@ if __name__ == "__main__":
     print(tree)
     tree_utils.map_tree_disc_traits(tree,retraits)
 
-    qmat,smap = mfc.create_q_matrix(2, 0.1, 0.3)
+    qmat,smap = mfc.create_q_matrix(3, 0.1, 0.3)
+    for i in qmat:
+        print(list(i))
+    print("\n\n")
     pmat = mfc.calc_p_matrix(qmat,.5)
     for i in pmat:
         print(list(i))
+    mfc.mfc_treelike(tree,ss)
 
     #allst = all_bs(3)
     #print(allst)
