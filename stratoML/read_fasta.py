@@ -13,7 +13,7 @@ def recode_poly_traits(traits,ss):
                 continue
             curss = ss[i]
             if curss < 2:
-                new.append(0)
+                new.append(1)
                 continue
             smap = smaps.get_smap(curss)
             retr = -9
@@ -28,7 +28,6 @@ def recode_poly_traits(traits,ss):
             new.append(retr)
             #print(tr,retr)
         retraits[n] = new
-        #print(n,curtr)
         #print(n,new)
     return retraits
 
@@ -43,7 +42,7 @@ def read_fasta(flnm):
             curlab = line.strip().replace(">","")
         else:
             linels = line.strip().split()
-            seq = []
+            seq = [[0]]
             for i,trait in enumerate(linels):
                 tt = trait.strip().split("|")
                 states = []
@@ -60,7 +59,8 @@ def read_fasta(flnm):
                         states.append(int(ttt))
                 seq.append(states)
             traits[curlab] = seq
-    state_spaces = []
+            #print(curlab,seq)
+    state_spaces = [1]
     for i in range(len(allstates)):
         curst = set(allstates[i])
         state_spaces.append(max(curst)+1)

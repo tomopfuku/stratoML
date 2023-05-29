@@ -4,6 +4,10 @@ import numpy as np
 cimport numpy as np
 np.import_array()
 cimport cython
+import qmat
+cimport qmat
+import sys
+#import mfc
 #from cpython cimport array
 #import array
 
@@ -24,8 +28,9 @@ cdef class Node:
     cdef public object parent
     cdef public list children
     #cdef public long[:] disc_starts
-    cdef public long[:] disc_traits
+    cdef public double[:,:] disc_traits
     cdef public double[:] strat
+    cdef public double[:,:,:] pmats
     #cdef public double[:] cont_traits
 
     def __init__(self):
@@ -39,36 +44,30 @@ cdef class Node:
         self.upper = 0.0
         self.lower = 0.0
         self.num_occurrences = 0
-        self.strat = np.array([0.0,0.0],dtype=np.double)
-        #self.disc_starts = np.array([],dtype=int)
-        self.disc_traits = np.array([],dtype=int)
+        #self.strat = np.array([0.0,0.0],dtype=np.double)
+        self.disc_traits = np.array([[]],dtype=np.double)
         #self.cont_traits = np.array([],dtype=np.double)
+        self.pmats = np.array([[[]]],dtype=np.double)
 
-    def add_disc_traits(self, list traitls):
-        self.disc_traits = np.array(traitls,dtype=int)
-        #print(traitls)
-        #print(self.disc_traits)
+    def update_pmat(self, qmat.Qmat ratemats, int maxstates):
+        self.pmats = ratemats.calc_p_mats(self.length, maxstates)
 
-    """def add_disc_traits(self, list traitls):
-        N = sum(map(len, traitls))
-        #starts = np.empty(N, dtype=int) 
-        starts = np.empty(len(traitls)+1, dtype=int) 
-        traits = np.empty(N, dtype=int)
-
-        starts[0], cnt = 0, 0
-        for i,states in enumerate(traitls):
-            for el in states:
-                traits[cnt] = el
-                cnt += 1       # update index in the flattened array for the next element
-            starts[i+1] = cnt  # remember the start of the next list
-        
-        print(starts)
-        print(type(starts))
-        print(traits)
-        print(np.array([starts,traits],dtype=int))
-        #self.disc_traits = np.array([starts,traits],dtype=int)
-        self.disc_starts = starts
-        self.disc_states = traits"""
+    def add_disc_traits(self, list traitls, long[:] ss):
+        cdef double trait_freq
+        cdef int i, cur_trait, j, nstate
+        cdef double[:,:] trait_probs = np.zeros((len(traitls),128),dtype=np.double)
+        for i in range(len(traitls)):
+            cur_trait = traitls[i]
+            if cur_trait != -9:
+                trait_probs[i][cur_trait] = 1.0
+            elif cur_trait == -9: # plug in flat priors for missing traits
+                nstate = 2 ** ss[i]
+                trait_freq = 1.0 / float(nstate)
+                for j in range(len(trait_probs[i])):
+                    if j == nstate:
+                        break
+                    trait_probs[i][j] = trait_freq
+        self.disc_traits = trait_probs
 
     def get_newick_repr(self, bint showbl=False):
         cdef unsigned int i

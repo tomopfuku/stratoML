@@ -17,11 +17,21 @@ extensions = [
     Extension(
         "stratoML.mfc",
         ["stratoML/mfc.pyx"],
+        #extra_compile_args=['-fopenmp'],
+        #extra_link_args=['-fopenmp'], 
+   ),
+   Extension(
+        "stratoML.qmat",
+        ["stratoML/qmat.pyx"],
     ),
     Extension(
         "stratoML.smaps",
         ["stratoML/smaps.pyx"],
     ),
+   #Extension(
+   #     "stratoML.spltmat",
+   #     ["stratoML/spltmat.pyx"],
+   # )
 
 ]
 

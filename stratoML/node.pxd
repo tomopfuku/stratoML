@@ -5,5 +5,6 @@ cdef class Node:
     cdef public str label
     cdef public object parent
     cdef public list children
-    cdef public long[:] disc_traits
+    cdef public double[:,:] disc_traits
     cdef public double[:] strat
+    cdef public double[:,:,:] pmats

@@ -32,7 +32,10 @@ def read_tree_table(flnm):
         curnode = codes[ncode][1]
         parnode = codes[par][1]
         parnode.add_child(curnode)
-    
+        if curnode.lower < parnode.upper:
+            curnode.length = parnode.upper - curnode.upper
+        else:
+            curnode.length = curnode.lower-curnode.upper            
     return tree
 
 if __name__ == "__main__":
