@@ -11,7 +11,7 @@ import qmat
 cimport qmat
 import spltmat as sm
 import buddmat as bm
-from scipy.optimize import minimize
+#from scipy.optimize import minimize
 #from cython.parallel import prange
 
 @cython.wraparound(False)
@@ -78,6 +78,7 @@ cdef double split_loglike_single_trait(node.Node n, int cur_k, int chari):
                 if traitprob == 0.0:
                     continue
                 curp2 += p2[anc2][traitprob_i] * traitprob
+                #print(curp1,curp2,curp1*curp2)
             anclike += (curp1 * curp2) * weight
         n.disc_traits[chari][ti] = anclike
         charlike += anclike
@@ -116,7 +117,7 @@ cdef bint check_mis(double[:] tr_vec):
     return mis
 
 cdef double budd_loglike_single_trait(node.Node n, int cur_k, int chari, double desc_weight):
-    cdef double weight, stateprob, allstprob, traitll
+    cdef double weight, stateprob,  traitll,allstprob = 0.0
     cdef double[:,:] p1
     cdef double[:] chd_tr, par_tr
     cdef long[:,:] cur_scen
@@ -229,7 +230,6 @@ def mfc_treell(node.Node tree, long[:] ss, bint asc = True):
             continue
         if n.istip == False:
             nodell = split_like(n, ss)
-            #print(nodelike)
         elif n.istip:
             nodell = budd_like(n, ss)
         treell += nodell

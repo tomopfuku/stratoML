@@ -32,6 +32,7 @@ cdef class Node:
     cdef public double[:] strat
     cdef public double[:,:,:] pmats
     #cdef public double[:] cont_traits
+    cdef public int index
 
     def __init__(self):
         #self.data = {}
@@ -40,14 +41,15 @@ cdef class Node:
         self.length = 0.
         self.parent = None
         self.children = []
-        self.height = 0.0
+        #self.height = 0.0
         self.upper = 0.0
         self.lower = 0.0
-        self.num_occurrences = 0
-        #self.strat = np.array([0.0,0.0],dtype=np.double)
+        #self.num_occurrences = 0
+        self.strat = np.array([0.0,0.0],dtype=np.double)
         self.disc_traits = np.array([[]],dtype=np.double)
         #self.cont_traits = np.array([],dtype=np.double)
         self.pmats = np.array([[[]]],dtype=np.double)
+        self.index = 0
 
     def update_pmat(self, qmat.Qmat ratemats, int maxstates):
         self.pmats = ratemats.calc_p_mats(self.length, maxstates)
@@ -107,6 +109,17 @@ cdef class Node:
 
     def leaves(self):
         return [ n for n in self.iternodes() if n.istip ]
+
+    
+    def get_sib(self):
+        cdef int i
+        if self.parent == None:
+            return "cannot return sibling for root node"
+        if len(self.parent.children) > 2:
+            return "cannot return single sibling for multifurcating node"
+        for i in range(2):
+            if self.parent.children[i] != self:
+                return self.parent.children[i]
 
     def iternodes(self, unsigned int order=PREORDER):#, v=None):
         cdef:
