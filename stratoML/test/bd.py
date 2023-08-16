@@ -22,6 +22,13 @@ def calc_prob_range(r,true_range,obs_range):
 def calc_non_pres(r,true_range):
     return math.exp(-r*true_range)    
 
+def bds_hyp_anc_log_prob(p,q,r,time):
+    prob_pt = math.log(1.0-math.exp(-p*time))
+    #prob_pt = (p*time)*math.exp(-p*time)
+    prob_qt = -q*time
+    prob_rt = -r*time
+    return (prob_pt + prob_qt + prob_rt )# / prob_qt
+
 def bds_hyp_anc_prob(p,q,r,time):
     prob_pt = (1.0-math.exp(-p*time))
     #prob_pt = (p*time)*math.exp(-p*time)

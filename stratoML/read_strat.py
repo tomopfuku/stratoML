@@ -13,8 +13,8 @@ def map_strat_to_tree(tree, flnm):
         lad = float(spls[2])
         ranges[spnm] = np.array([fad,lad])
 
-    for node in tree.iternodes():
-        if node.istip:
+    for n in tree.iternodes():
+        if n.istip:
             try:
                 strat = ranges[n.label]
                 n.strat = strat

@@ -14,8 +14,8 @@ import buddmat as bm
 #from scipy.optimize import minimize
 #from cython.parallel import prange
 
-@cython.wraparound(False)
-@cython.boundscheck(False)
+#@cython.wraparound(False)
+#@cython.boundscheck(False)
 
 def mat_mult(double[:,:] mat, double m):
     cdef int i,j,nrow
@@ -38,7 +38,8 @@ cdef double split_loglike_single_trait(node.Node n, int cur_k, int chari):
     cdef double[:,:] p1, p2
     cdef double[:] ch1_tr,ch2_tr
     cdef long[:,:,:] cur_scen
- 
+
+
     cur_scen = sm.get_spltmat(cur_k)
     ch1_tr = n.children[0].disc_traits[chari]
     p1 = n.children[0].pmats[cur_k-2] 
@@ -98,8 +99,13 @@ cdef double split_like(node.Node n, long[:] ss):
         cur_k = ss[chari]
         if cur_k == 1:
             continue
-        charll = split_loglike_single_trait(n, cur_k, chari)
+        try:
+            charll = split_loglike_single_trait(n, cur_k, chari)
+        except:
+            print("HERE")
+            sys.exit()
         nodelike += charll
+        #print(n.label,nodelike)
     return nodelike
 
 cdef bint check_mis(double[:] tr_vec):
@@ -232,6 +238,9 @@ def mfc_treell(node.Node tree, long[:] ss, bint asc = True):
             nodell = split_like(n, ss)
         elif n.istip:
             nodell = budd_like(n, ss)
+        if nodell == 0.0:
+            print("error in calculating morph ll")
+            sys.exit()
         treell += nodell
 
     if asc == True:
@@ -245,7 +254,7 @@ def evaluate_m_l(double[:] params, node.Node tree, qmat.Qmat qmats,long[:] ss):
     cdef double treell
     cdef int maxstates = max(ss)
 
-    if params[0] < 0.000001 or params[1] < 0.000001:
+    if params[0] < 0.0001 or params[1] < 0.0001:
         return 10000000000
 
     qmats.update_all_qmats(params[0],params[1]) 

@@ -3,6 +3,7 @@ cimport node
 import numpy as np
 cimport numpy as np
 import bd
+import sys
 
 cpdef double poisson_loglike(double lam, node.Node tree):
     cdef double tf,tl,f,l,samp_time,unsamp_time,lp_samp,lp_unsamp,lp0,lp1,lp01,brlik,treelik = 0.0
@@ -32,7 +33,7 @@ cpdef double poisson_loglike(double lam, node.Node tree):
             brlik = lp_samp + lp_unsamp
         #elif nfos == 1: #or nfos == 0:
         #    brlik = math.log(lam)+(-lam*(tf-tl))
-            #print math.log(lam*(math.exp(-lam*(tf-tl))))
+        #    print math.log(lam*(math.exp(-lam*(tf-tl))))
         else:
             brlik =  -(tf-tl) * lam
         #print(n.label,samp_time,unsamp_time,brlik)
@@ -42,34 +43,183 @@ cpdef double poisson_loglike(double lam, node.Node tree):
 def poisson_neg_ll(double lam, node.Node tree):
     return -poisson_loglike(lam,tree)
 
+def single_range_ll(double gap, double p, double q, double r, double obs_range, int nch):
+    cdef double r_like,p_like,q_like, duration, ll
+    duration = obs_range + gap
+    if gap <= 0.0 or gap > 20.0:
+        return 100000000.0
+
+    r_like = np.log(bd.calc_prob_range(r,duration,obs_range))
+    p_like = np.log(bd.prob_n_obs_desc(p,q,r,nch,duration))
+    q_like = np.log(bd.prob_extinction_t(q,duration))
+    ll = p_like + q_like + r_like
+    return -ll 
+
+def single_range_mle_optim(double p, double q, double r, node.Node n):
+    obs_range = n.strat[0] - n.strat[1]
+    duration = obs_range + 0.01
+    #res = minimize(stratlike.single_range_ll,x0=0.01,args=(p,q,r,obs_range,nch),method="BFGS")#,bounds=(((0.0001,5.0))))
+
+
+def single_range_mle(double p,double q,double r, node.Node n):
+    cdef double duration, obs_range, r_like, p_like, q_like, loglike, best, best_dur
+
+    #duration = n.lower - n.upper
+    obs_range = n.strat[0] - n.strat[1]
+    duration = obs_range + 0.01
+    best = -1000000000.0
+    best_dur = duration
+    while True:
+        r_like = np.log(bd.calc_prob_range(r,duration,obs_range))
+        p_like = np.log(bd.prob_n_obs_desc(p,q,r,len(n.children),duration))
+        q_like = np.log(bd.prob_extinction_t(q,duration))
+        loglike = r_like + p_like + q_like
+        #loglike = bds_extinct_branch_ll(p,q,r,n)
+        #print(n.label,loglike,duration,duration-obs_range)
+        if loglike > best:
+            best = loglike
+            best_dur = duration
+        elif loglike < best:
+            break
+        duration += 0.01
+    return best_dur
+
+cpdef double hyp_anc_mle(double p, double q, double r):
+    cdef double mle
+    mle = np.log( (p+q+r) / (q+r) ) / p
+    return mle
+
+
+def hyp_anc_mle_sim(double p, double q, double r):
+    cdef double duration, best, loglike, bestdur
+    duration = 0.01
+    best = -1000000000.0
+    bestdur = duration
+    while True:
+        loglike = bd.bds_hyp_anc_log_prob(p,q,r,duration)
+        #print(loglike,duration)
+        if loglike > best:
+            best = loglike
+            bestdur = duration
+        elif loglike < best:
+            break
+        duration += 0.01
+    return bestdur
+
+def calibrate_brlens_strat(tree,gap=0.1):
+    cdef double f,l
+    cdef node.Node n
+
+    for n in tree.iternodes(order=1):
+        if n.istip:
+            f = n.strat[0]
+            l = n.strat[1]
+            n.upper = l - (gap / 2.0)
+            if n.upper < 0.0:
+                n.upper = 0.0
+            n.lower = f + (gap / 2.0)
+            n.length = n.lower - n.upper
+        else:
+            #if n == tree:
+            #    continue
+            oldest = 0.0
+            for ch in n.children:
+                if ch.lower > oldest:
+                    oldest = ch.lower 
+            for ch in n.children:
+                ch.lower = oldest
+            n.upper = oldest
+            n.lower = n.upper+gap
+            n.length = gap
+    for n in tree.iternodes(order = 1):
+        if n.istip:
+            for ch in n.children:
+                if ch.lower >= n.lower:
+                    n.lower = ch.lower + 0.1
+                if ch.lower < n.upper:
+                    n.upper = ch.lower
+ 
+
+def bds_dates(double p, double q, double r, node.Node tree):
+    cdef double gap, mllen, f, l, hypanc_len, oldest , obs_range
+    cdef node.Node n, ch
+    hypanc_len = hyp_anc_mle(p,q,r)
+    for n in tree.iternodes(order=1):
+        if n.istip:
+            f = n.strat[0]
+            l = n.strat[1]
+            obs_range = f-l
+            mllen = single_range_mle(p,q,r,n)
+            gap = (mllen-obs_range) / 2.0
+            n.upper = l - gap
+            if n.upper < 0.0:
+                n.upper = 0.0
+            n.lower = f + gap
+            n.length = mllen
+        else:
+            if n == tree:
+                continue
+            oldest = 0.0
+            for ch in n.children:
+                if ch.lower > oldest:
+                    oldest = ch.lower ## fix length of younger sister taxon?
+            for ch in n.children:
+                ch.lower = oldest
+            n.upper = oldest
+            n.lower = n.upper+hypanc_len
+            n.length = hypanc_len
+    #print("\n\n\n")
+    for n in tree.iternodes(order = 1):
+        if n.istip:
+            for ch in n.children:
+                if ch.lower >= n.lower:
+                    n.lower = ch.lower + 0.1
+                if ch.lower < n.upper:
+                    n.upper = ch.lower
+
+def bds_extinct_branch_ll(double p,double q,double r,node.Node n):
+    cdef f,l,obs_range,tf,tl,duration,p_like,q_like,r_like,brlik
+    
+    tf = n.lower
+    tl = n.upper
+    duration = tf-tl
+
+    f = n.strat[0]
+    l = n.strat[1]
+    obs_range = f-l
+    r_like = bd.calc_prob_range(r,duration,obs_range)
+    p_like = bd.prob_n_obs_desc(p,q,r,len(n.children),duration)
+    q_like = bd.prob_extinction_t(q,duration)
+    brlik = np.log(r_like) + np.log(p_like) + np.log(q_like)
+    return brlik
+
+def bds_hyp_anc_ll(double p,double q,double r,node.Node n):
+    cdef tf,tl,duration,brlik
+
+    tf = n.lower
+    tl = n.upper
+    duration = tf-tl
+    brlik = bd.bds_hyp_anc_log_prob(p,q,r,duration)
+    return brlik
+
 def bds_loglike(double p, double q, double r, node.Node tree):
-    cdef double small,tf,tl,f,l,range,duration,r_like,p_like,q_like,brlik,treelik = 0.0
+    cdef double small,tf,tl,f,l,obs_range,duration,r_like,p_like,q_like,brlik,treelik = 0.0
     cdef node.Node n
 
     small = 0.0001
     if r < small or p < small or q < small:
-        return -100000000000
+        return -100000000000.0
 
     for n in tree.iternodes():
         if n == tree and n.istip == False:
             continue
-        tf = n.lower
-        tl = n.upper
-        duration = tf-tl
         if n.istip:
-            f = n.strat[0]
-            l = n.strat[1]
-            range = f-l
-            r_like = bd.calc_prob_range(r,duration,range)
-            p_like = bd.prob_n_obs_desc(p,q,r,len(n.children),duration)
-            q_like = bd.prob_extinction_t(q,duration)
-            brlik = np.log(r_like) + np.log(p_like) + np.log(q_like)
-            #print(n.label,n.lower,n.upper,n.strat[0],n.strat[1],r_like,p_like,q_like, duration,range, brlik)
-
+            if n.upper > 0.0:
+                brlik = bds_extinct_branch_ll(p,q,r,n)
+            elif n.upper == 0.0:
+                print("extant species not yet implemented for bds")
         else:
-            #print(p,q,r,duration)
-            brlik = np.log(bd.bds_hyp_anc_prob(p,q,r,duration))
-            #print(p,q,r,duration)
+            brlik = bds_hyp_anc_ll(p,q,r,n)
         treelik += brlik
     return treelik
 

@@ -32,6 +32,11 @@ extensions = [
         "stratoML.stratlike",
         ["stratoML/stratlike.pyx"],
     ),
+    Extension(
+        "stratoML.bd",
+        ["stratoML/bd.pyx"],
+    ),
+
 
    #Extension(
    #     "stratoML.spltmat",
