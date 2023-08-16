@@ -2,14 +2,14 @@ import sys
 import node
 import tree_reader,read_fasta,tree_utils
 import numpy as np
-import mfc
+#import mfc
 import qmat
-import stratlike
-import time
-from scipy.optimize import minimize
-from scipy.optimize import dual_annealing
-from scipy.optimize import basinhopping 
-import bd
+#import stratlike
+#import time
+#from scipy.optimize import minimize
+#from scipy.optimize import dual_annealing
+#from scipy.optimize import basinhopping 
+#import bd
 """test = node.Node()
 print(test)
 test.add_disc_traits([[0,1],[0],[0,1,2]])

@@ -32,7 +32,7 @@ cdef class Node:
     cdef public double[:] strat
     cdef public double[:,:,:] pmats
     #cdef public double[:] cont_traits
-    cdef public int index
+    cdef public int index, subtree
 
     def __init__(self):
         #self.data = {}
@@ -117,6 +117,8 @@ cdef class Node:
             return "cannot return sibling for root node"
         if len(self.parent.children) > 2:
             return "cannot return single sibling for multifurcating node"
+        if len(self.parent.children) == 1:
+            return None
         for i in range(2):
             if self.parent.children[i] != self:
                 return self.parent.children[i]

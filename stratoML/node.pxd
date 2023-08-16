@@ -8,4 +8,4 @@ cdef class Node:
     cdef public double[:,:] disc_traits
     cdef public double[:] strat
     cdef public double[:,:,:] pmats
-    cdef public int index
+    cdef public int index, subtree

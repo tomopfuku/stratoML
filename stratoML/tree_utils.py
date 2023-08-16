@@ -34,6 +34,9 @@ def map_tree_disc_traits(tree,traits,ss):
        
 
 def prune_subtree(pluck_node):
+    if pluck_node.parent.parent == None:
+        print("ERROR: cannot prune branch from the root. exiting search")
+        sys.exit()
     if pluck_node.parent.istip:
         pluck_node.parent.children.remove(pluck_node)
         par = pluck_node.parent
@@ -156,7 +159,8 @@ def find_all_possible_descendant_nodes(tree):
     descnodes = [n for n in tree.iternodes() if n != tree and n.parent != tree and n.istip]
     goodnodes = []
     for n in descnodes:
-        ancnodes = [nn for nn in tree.iternodes() if nn != n.parent and nn.istip and nn.strat[0] >= n.strat[0]]
+        ancnodes = get_possible_ancestors(n,tree)#[nn for nn in tree.iternodes() if nn != n and nn != n.parent and nn != n.get_sib() and nn.istip and nn.strat[0] >= n.strat[0] and nn.subtree == n.subtree]
+        #print("TEST",n.label,len(ancnodes),[n.label for n in ancnodes])
         if len(ancnodes) > 0:
             goodnodes.append(n)
     return goodnodes
@@ -170,28 +174,48 @@ def pick_candidate_ancestor(tree):
         pick_candidate_ancestor(tree)
 """
 
-def find_new_ancestor(tree,descnodes,ss,startaic=None):
+def choose_descnode(descnodes):
+    all_root = True
+    for n in descnodes:
+        if n.parent.parent != None:
+            all_root = False
+    if all_root:
+        print("ERROR: all candidate descendants are attached to the root!")
+        sys.exit()
+    pluck_node = random.choice(descnodes)
+    if pluck_node.parent.parent == None:
+        pluck_node = choose_descnode(descnodes)
+    return pluck_node
+
+def get_possible_ancestors(pluck_node,tree):
+    nodes = [nn for nn in tree.iternodes() if nn != pluck_node and nn != pluck_node.parent and nn.istip and nn.strat[0] >= pluck_node.strat[0] and nn.subtree == pluck_node.subtree] #and nn != pluck_node.get_sib()] 
+    return nodes
+
+def find_new_ancestor(tree,ss,startaic=None):
+    descnodes = find_all_possible_descendant_nodes(tree)
     if startaic == None:
         startaic,_,_ = calc_tree_ll(tree,ss)
     bestaic = startaic
-    pluck_node = random.choice(descnodes)
-
-    print("BEFORE:",tree.get_newick_repr())
+    pluck_node = choose_descnode(descnodes)# random.choice(descnodes)
+    #print([n.label for n in descnodes])
+    #print(pluck_node.label,pluck_node.subtree)
+    #print("BEFORE:",tree.get_newick_repr())
     prev_par, sib = prune_subtree(pluck_node)
     if sib:
         spare_hyp_anc = pluck_node.parent
     #if sib: # if pluck_node is bifurcating (i.e. has a hyp_anc)
-    nodes = [n for n in tree.iternodes() if n != sib and n != prev_par and n.istip and n.strat[0] >= pluck_node.strat[0]]
-
+    #nodes = [n for n in tree.iternodes() if n != sib and n != prev_par and n.istip and n.strat[0] >= pluck_node.strat[0] and n.subtree == pluck_node.subtree]
+    nodes = get_possible_ancestors(pluck_node,tree) #[nn for nn in tree.iternodes() if nn != pluck_node and nn != pluck_node.parent and nn != pluck_node.get_sib() and nn.istip and nn.strat[0] >= pluck_node.strat[0] and nn.subtree == pluck_node.subtree]
     aics = []
     for regraft_node in nodes:
         regraft_AD_subtree(pluck_node,regraft_node)
         curaic,_,_ = calc_tree_ll(tree,ss)
         #reattach_to_orig_parent(pluck_node,prev_par,sib)
+        #print("DURING",tree.get_newick_repr())
         prune_subtree(pluck_node)
         #prev_par, sib = prune_subtree(pluck_node)
         aics.append((curaic,regraft_node))
-    print(tree.get_newick_repr())
+    #print("AFTER",tree.get_newick_repr())
     aics = sorted(aics, key = lambda x: x[0])
     bestrearr = aics[0]
     changed = False
@@ -200,6 +224,8 @@ def find_new_ancestor(tree,descnodes,ss,startaic=None):
         regraft_AD_subtree(pluck_node,bestrearr[1])
         bestaic = bestrearr[0]
         changed = True
+        #print("keep",tree.get_newick_repr())
+
     else:
         #reattach_to_orig_parent(pluck_node,prev_par,sib)
         if sib:
@@ -207,7 +233,7 @@ def find_new_ancestor(tree,descnodes,ss,startaic=None):
             regraft_bif_subtree(pluck_node,sib)
         else:
             regraft_AD_subtree(pluck_node,prev_par)
-        print("reattach",tree.get_newick_repr())
+        #print("reattach",tree.get_newick_repr())
     return changed,bestaic
 
 
@@ -256,6 +282,7 @@ def search_bifurcating(tree,ss,startaic = None):
     if startaic == None:
         startaic,_,_ = calc_tree_ll(tree,ss)
 
+    bestaic = startaic
     testnodes = []
     for n in tree.iternodes():
         if n == tree:
@@ -266,17 +293,23 @@ def search_bifurcating(tree,ss,startaic = None):
     #print([n.label for n in testnodes])
     if len(testnodes) > 0:
         for n in testnodes:
-            print(tree.get_newick_repr())
+            #print(tree.get_newick_repr())
             make_bifurcating(n)
             curaic,_,_ = calc_tree_ll(tree,ss)
             aics.append((curaic,n))
+            #print(tree.get_newick_repr(),startaic,curaic)
             make_ancestor(n.parent)
 
         aics = sorted(aics, key = lambda x: x[0])
-        bestaic = startaic
-
+        seenpar = {}
         for tup in aics:
             curbif = tup[1]
+            try: 
+                seenpar[curbif]
+                continue
+            except:
+                seenpar[curbif] = True
+
             make_bifurcating(curbif)
 
             curaic,morph,strat = calc_tree_ll(tree,ss)
@@ -290,6 +323,7 @@ def search_bifurcating(tree,ss,startaic = None):
 
         #print(bestaic)
         #print(tree.get_newick_repr())
+    return bestaic
 
 
 
@@ -360,14 +394,16 @@ def tree_search(tree, ss):
 def tree_search2(tree,ss):
     bestaic,_,_ = calc_tree_ll(tree,ss)
     besttree = tree.get_newick_repr()
-    cand_desc = find_all_possible_descendant_nodes(tree)
-    for i in range(3):
+    #cand_desc = find_all_possible_descendant_nodes(tree)
+    for i in range(5):
         #changed,curaic = find_best_spr(tree,ss)
-        changed,curaic = find_new_ancestor(tree,cand_desc,ss)
-        print("\n\n","ITERATION",i,changed,curaic)
+        changed,curaic = find_new_ancestor(tree,ss)
+        print("\n\nITERATION",i,changed,curaic)
         if changed:
             bestaic = curaic
             besttree = tree.get_newick_repr()
+    print("BEST",besttree)
+    curaic = search_bifurcating(tree,ss)
     return besttree, bestaic
 
 def make_new_hyp_anc(descendant):
