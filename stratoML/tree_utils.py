@@ -114,19 +114,36 @@ def regraft_AD_subtree(pluck_node,regraft_node):
         pluck_node.parent = regraft_node
         regraft_node.children.append(pluck_node)
 
+"""
+def pick_spr_prune_regraft_nodes(tree):
+    nodes = [n for n in tree.iternodes() if n != tree and n.parent != tree]
+    pluck_node = random.choice(nodes)
+    nodes = [n for n in tree.iternodes() if n != tree and n != prev_par and n != sib and n.subtree == pluck_node.subtree]
+    if len(nodes) == 0:
+        pick_spr_prune_regraft_nodes(tree)
+"""
+
+
 def find_best_spr(tree,ss,startaic = None):
     if startaic == None:
         startaic,_,_ = calc_tree_ll(tree,ss)
     bestaic = startaic
-    nodes = [n for n in tree.iternodes() if n != tree and n.parent != tree]
-    pluck_node = random.choice(nodes)
+    for i in range(5):
+        nodes = [n for n in tree.iternodes() if n != tree and n.parent != tree]
+        pluck_node = random.choice(nodes)
+        print("BEFORE:",tree.get_newick_repr())
+        prev_par, sib = prune_subtree(pluck_node)
+        nodes = [n for n in tree.iternodes() if n != tree and n != prev_par and n != sib and n.subtree == pluck_node.subtree]
+        if len(nodes) > 0:
+            break
+        if sib:
+            regraft_bif_subtree(pluck_node,sib)
+        else:
+            regraft_AD_subtree(pluck_node,prev_par)
+        if i == 4:
+            print("couldn't find suitable node to prune in find_best_spr()")
+            return None,None
 
-    print("BEFORE:",tree.get_newick_repr())
-    prev_par, sib = prune_subtree(pluck_node)
-    #if sib: # if pluck_node is bifurcating (i.e. has a hyp_anc)
-    nodes = [n for n in tree.iternodes() if n != tree and n != prev_par and n != sib]
-    #else:
-    #    nodes = [n for n in tree.iternodes() if n != tree and n != prev_par and n.istip and n.strat[0] >= pluck_node.strat[0]]
     aics = []
 
     for regraft_node in nodes:
@@ -142,7 +159,7 @@ def find_best_spr(tree,ss,startaic = None):
     changed = False
     if bestrearr[0] < startaic:
         #prune_subtree(pluck_node)
-        regraft_subtree(pluck_node,bestrearr[1])
+        regraft_bif_subtree(pluck_node,bestrearr[1])
         bestaic = bestrearr[0]
         changed = True
     else:
@@ -150,7 +167,7 @@ def find_best_spr(tree,ss,startaic = None):
         if sib:
             regraft_bif_subtree(pluck_node,sib)
         else:
-            regraft_subtree(pluck_node,prev_par)
+            regraft_AD_subtree(pluck_node,prev_par)
         print("reattach",tree.get_newick_repr())
         #sys.exit()
     return changed, bestaic
@@ -180,7 +197,7 @@ def choose_descnode(descnodes):
         if n.parent.parent != None:
             all_root = False
     if all_root:
-        print("ERROR: all candidate descendants are attached to the root!")
+        print("ERROR: all candidate descendants are attached to root")
         sys.exit()
     pluck_node = random.choice(descnodes)
     if pluck_node.parent.parent == None:
@@ -393,11 +410,14 @@ def tree_search(tree, ss):
 
 def tree_search2(tree,ss):
     bestaic,_,_ = calc_tree_ll(tree,ss)
+    print("STARTING AIC:",bestaic)
     besttree = tree.get_newick_repr()
     #cand_desc = find_all_possible_descendant_nodes(tree)
-    for i in range(5):
-        #changed,curaic = find_best_spr(tree,ss)
-        changed,curaic = find_new_ancestor(tree,ss)
+    for i in range(6):
+        if i % 2 == 0:
+            changed,curaic = find_best_spr(tree,ss)
+        else:
+            changed,curaic = find_new_ancestor(tree,ss)
         print("\n\nITERATION",i,changed,curaic)
         if changed:
             bestaic = curaic
