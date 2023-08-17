@@ -7,6 +7,7 @@ from scipy.optimize import minimize
 from scipy.optimize import basinhopping 
 import mfc
 import qmat
+import biparts as bp
 #import read_fasta, tree_reader
 
 
@@ -149,11 +150,9 @@ def find_best_spr(tree,ss,startaic = None):
     for regraft_node in nodes:
         regraft_bif_subtree(pluck_node,regraft_node)
         curaic,_,_ = calc_tree_ll(tree,ss)
-        #reattach_to_orig_parent(pluck_node,prev_par,sib)
         prune_subtree(pluck_node)
-        #prev_par, sib = prune_subtree(pluck_node)
         aics.append((curaic,regraft_node))
-    print(tree.get_newick_repr())
+    
     aics = sorted(aics, key = lambda x: x[0])
     bestrearr = aics[0]
     changed = False
@@ -214,43 +213,32 @@ def find_new_ancestor(tree,ss,startaic=None):
         startaic,_,_ = calc_tree_ll(tree,ss)
     bestaic = startaic
     pluck_node = choose_descnode(descnodes)# random.choice(descnodes)
-    #print([n.label for n in descnodes])
-    #print(pluck_node.label,pluck_node.subtree)
-    #print("BEFORE:",tree.get_newick_repr())
     prev_par, sib = prune_subtree(pluck_node)
     if sib:
         spare_hyp_anc = pluck_node.parent
-    #if sib: # if pluck_node is bifurcating (i.e. has a hyp_anc)
-    #nodes = [n for n in tree.iternodes() if n != sib and n != prev_par and n.istip and n.strat[0] >= pluck_node.strat[0] and n.subtree == pluck_node.subtree]
     nodes = get_possible_ancestors(pluck_node,tree) #[nn for nn in tree.iternodes() if nn != pluck_node and nn != pluck_node.parent and nn != pluck_node.get_sib() and nn.istip and nn.strat[0] >= pluck_node.strat[0] and nn.subtree == pluck_node.subtree]
     aics = []
+    #allseen = []
     for regraft_node in nodes:
         regraft_AD_subtree(pluck_node,regraft_node)
         curaic,_,_ = calc_tree_ll(tree,ss)
-        #reattach_to_orig_parent(pluck_node,prev_par,sib)
-        #print("DURING",tree.get_newick_repr())
+        #allseen.append((curaic,tree.get_newick_repr()))
         prune_subtree(pluck_node)
-        #prev_par, sib = prune_subtree(pluck_node)
         aics.append((curaic,regraft_node))
-    #print("AFTER",tree.get_newick_repr())
     aics = sorted(aics, key = lambda x: x[0])
     bestrearr = aics[0]
     changed = False
     if bestrearr[0] < startaic:
-        #prune_subtree(pluck_node)
         regraft_AD_subtree(pluck_node,bestrearr[1])
         bestaic = bestrearr[0]
         changed = True
-        #print("keep",tree.get_newick_repr())
 
     else:
-        #reattach_to_orig_parent(pluck_node,prev_par,sib)
         if sib:
             pluck_node.parent = spare_hyp_anc
             regraft_bif_subtree(pluck_node,sib)
         else:
             regraft_AD_subtree(pluck_node,prev_par)
-        #print("reattach",tree.get_newick_repr())
     return changed,bestaic
 
 
@@ -412,18 +400,30 @@ def tree_search2(tree,ss):
     bestaic,_,_ = calc_tree_ll(tree,ss)
     print("STARTING AIC:",bestaic)
     besttree = tree.get_newick_repr()
-    #cand_desc = find_all_possible_descendant_nodes(tree)
+    tipdic = bp.get_tip_indices(tree)
+    curbp = bp.decompose_tree(tree,tipdic)
+    seen = set([curbp])
+    outfl = open("stratoML.outtrees","w")
+    outfl.write(str(bestaic)+" "+besttree+"\n")
     for i in range(6):
         if i % 2 == 0:
-            changed,curaic = find_best_spr(tree,ss)
+            changed, curaic = find_new_ancestor(tree,ss)
         else:
-            changed,curaic = find_new_ancestor(tree,ss)
+            changed, curaic = find_best_spr(tree,ss)
+            #if changed:
+            #    curaic = search_ancestors(tree,ss)
         print("\n\nITERATION",i,changed,curaic)
         if changed:
             bestaic = curaic
             besttree = tree.get_newick_repr()
+            curbp = bp.decompose_tree(tree,tipdic)
+            if curbp not in seen:
+                #print("HERE",curbp,seen,tree.get_newick_repr())
+                seen.add(curbp)
+                outfl.write(str(bestaic)+" "+besttree+"\n")
     print("BEST",besttree)
-    curaic = search_bifurcating(tree,ss)
+    outfl.close()
+    #curaic = search_bifurcating(tree,ss)
     return besttree, bestaic
 
 def make_new_hyp_anc(descendant):

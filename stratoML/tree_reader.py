@@ -172,6 +172,9 @@ def read_tree_string(instr):
         if index < len(instr) - 1:
             index += 1
         nextchar = instr[index]
+    for n in root.iternodes():
+        if n.label != "":
+            n.istip = True
     for ch_i in range(len(root.children)):
         for n in root.children[ch_i].iternodes():
             n.subtree = ch_i + 1
