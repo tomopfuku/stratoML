@@ -28,7 +28,12 @@ def mat_mult(double[:,:] mat, double m):
 
 def calc_p_matrix(double[:,:] ratemat, double t):
     cdef double[:,:] pmat
+
     pmat = expm(mat_mult(ratemat,t))
+    for i in pmat[0]:
+        if np.isnan(i):
+            print("NAN")
+            sys.exit()
     return pmat
 
 cdef double split_loglike_single_trait(node.Node n, int cur_k, int chari):

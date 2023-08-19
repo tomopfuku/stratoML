@@ -106,7 +106,7 @@ def hyp_anc_mle_sim(double p, double q, double r):
         duration += 0.01
     return bestdur
 
-def calibrate_brlens_strat(tree,gap=0.1):
+def calibrate_brlens_strat(tree,gap=0.2):
     cdef double f,l
     cdef node.Node n
 
@@ -118,7 +118,6 @@ def calibrate_brlens_strat(tree,gap=0.1):
             if n.upper < 0.0:
                 n.upper = 0.0
             n.lower = f + (gap / 2.0)
-            n.length = n.lower - n.upper
         else:
             #if n == tree:
             #    continue
@@ -130,7 +129,6 @@ def calibrate_brlens_strat(tree,gap=0.1):
                 ch.lower = oldest
             n.upper = oldest
             n.lower = n.upper+gap
-            n.length = gap
     for n in tree.iternodes(order = 1):
         if n.istip:
             for ch in n.children:
@@ -138,6 +136,7 @@ def calibrate_brlens_strat(tree,gap=0.1):
                     n.lower = ch.lower + 0.1
                 if ch.lower < n.upper:
                     n.upper = ch.lower
+        n.length = n.lower-n.upper
  
 
 def bds_dates(double p, double q, double r, node.Node tree):
@@ -157,8 +156,8 @@ def bds_dates(double p, double q, double r, node.Node tree):
             n.lower = f + gap
             n.length = mllen
         else:
-            if n == tree:
-                continue
+            #if n == tree:
+            #    continue
             oldest = 0.0
             for ch in n.children:
                 if ch.lower > oldest:

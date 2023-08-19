@@ -1,5 +1,4 @@
 import tree_reader
-import node
 import sys
 
 def get_tip_indices(tree):

@@ -1,0 +1,3 @@
+python ../../main_newick.py noth.rr.tre noth.poly_format.fa noth.ranges.tab
+
+python ../../plot_tree_table.py curbest.tre noth.ranges.tab

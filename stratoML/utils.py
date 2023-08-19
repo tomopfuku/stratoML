@@ -16,7 +16,7 @@ if __name__ == "__main__":
     print("import numpy as np\n\n")
     decl = "cdef long[:,:] "
     start = 2
-    stop = 5
+    stop = 8
     for i in range(start,stop):
         decl += f"smap{i}"
         if i < stop-1:

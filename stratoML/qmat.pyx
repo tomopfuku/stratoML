@@ -25,7 +25,7 @@ cdef class Qmat:
         cdef int i
         #cdef double[:,:] qmat
         #cdef long[:,:] smap
-        for i in range(2,5): ## TODO: need to increase stop to 8 after implementing full 7 state smaps
+        for i in range(2,8): ## TODO: need to increase stop to 8 after implementing full 7 state smaps
             #smap = smaps.get_smap(i)
             #qmat = self.get_qmat(i)
             self.update_mut_loss(i,m,l)

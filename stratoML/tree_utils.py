@@ -132,7 +132,6 @@ def find_best_spr(tree,ss,startaic = None):
     for i in range(5):
         nodes = [n for n in tree.iternodes() if n != tree and n.parent != tree]
         pluck_node = random.choice(nodes)
-        print("BEFORE:",tree.get_newick_repr())
         prev_par, sib = prune_subtree(pluck_node)
         nodes = [n for n in tree.iternodes() if n != tree and n != prev_par and n != sib and n.subtree == pluck_node.subtree]
         if len(nodes) > 0:
@@ -167,7 +166,6 @@ def find_best_spr(tree,ss,startaic = None):
             regraft_bif_subtree(pluck_node,sib)
         else:
             regraft_AD_subtree(pluck_node,prev_par)
-        print("reattach",tree.get_newick_repr())
         #sys.exit()
     return changed, bestaic
 
@@ -228,7 +226,7 @@ def find_new_ancestor(tree,ss,startaic=None):
     aics = sorted(aics, key = lambda x: x[0])
     bestrearr = aics[0]
     changed = False
-    if bestrearr[0] < startaic:
+    if bestrearr[0] < bestaic:
         regraft_AD_subtree(pluck_node,bestrearr[1])
         bestaic = bestrearr[0]
         changed = True
@@ -259,6 +257,7 @@ def random_spr(tree):
 
 def calc_tree_ll(tree,ss):
     stratlike.calibrate_brlens_strat(tree)
+
     qmats = qmat.Qmat(0.01,0.05)
     #for n in tree.iternodes():
     #    n.update_pmat(qmats,max(ss))
@@ -295,14 +294,12 @@ def search_bifurcating(tree,ss,startaic = None):
         if n.istip and n.parent.istip:
             testnodes.append(n)
     aics = []
-    #print([n.label for n in testnodes])
+    changed = False
     if len(testnodes) > 0:
         for n in testnodes:
-            #print(tree.get_newick_repr())
             make_bifurcating(n)
             curaic,_,_ = calc_tree_ll(tree,ss)
             aics.append((curaic,n))
-            #print(tree.get_newick_repr(),startaic,curaic)
             make_ancestor(n.parent)
 
         aics = sorted(aics, key = lambda x: x[0])
@@ -316,19 +313,15 @@ def search_bifurcating(tree,ss,startaic = None):
                 seenpar[curbif] = True
 
             make_bifurcating(curbif)
-
             curaic,morph,strat = calc_tree_ll(tree,ss)
-            #print(curaic,tree.get_newick_repr())
 
             if curaic < bestaic:
                 bestaic = curaic
+                changed = True
             else:
                 make_ancestor(curbif.parent)
                 break
-
-        #print(bestaic)
-        #print(tree.get_newick_repr())
-    return bestaic
+    return changed, bestaic
 
 
 
@@ -357,6 +350,8 @@ def search_ancestors(tree,ss,startaic = None):
     #print(testnodes)
 
     aics = []
+    changed = False
+    bestaic = startaic
     if len(testnodes) > 0:
         for n in testnodes:
             desc = make_ancestor(n)
@@ -366,7 +361,6 @@ def search_ancestors(tree,ss,startaic = None):
             make_bifurcating(desc,n)
 
         aics = sorted(aics, key = lambda x: x[0])
-        bestaic = startaic
 
         for tup in aics:
             curanc = tup[1]
@@ -374,11 +368,13 @@ def search_ancestors(tree,ss,startaic = None):
             curaic,morph,strat = calc_tree_ll(tree,ss)
             if curaic < bestaic:
                 bestaic = curaic
+                changed = True
             else:
                 make_bifurcating(desc,curanc)
-        print(bestaic)
-        print(tree.get_newick_repr())
-
+                break
+        #print(bestaic)
+        #print(tree.get_newick_repr())
+    return changed, bestaic
 
 def tree_search(tree, ss):
     #sl.calibrate_brlens_strat(tree)
@@ -397,33 +393,46 @@ def tree_search(tree, ss):
     print(besttree)
 
 def tree_search2(tree,ss):
+    stratlike.calibrate_brlens_strat(tree,0.3)
     bestaic,_,_ = calc_tree_ll(tree,ss)
     print("STARTING AIC:",bestaic)
     besttree = tree.get_newick_repr()
     tipdic = bp.get_tip_indices(tree)
     curbp = bp.decompose_tree(tree,tipdic)
     seen = set([curbp])
+    nums = [0,1,2,3] # 0 = spr; 1 = find_new_ancestor; 2 = search_ancestors; 3 = search_bifurcating
+    weights = [0.4,0.4,0.1,0.1]
+    weights = [0.45,0.45,0.1,0.0]
     outfl = open("stratoML.outtrees","w")
     outfl.write(str(bestaic)+" "+besttree+"\n")
-    for i in range(6):
-        if i % 2 == 0:
-            changed, curaic = find_new_ancestor(tree,ss)
+    lastchange = 0
+    for i in range(100):
+        if i-lastchange >=20:
+            break
+        move = random.choices(population=nums,weights=weights,k=1)[0] 
+        if move == 0:
+            changed, curaic = find_best_spr(tree,ss,bestaic)
+        elif move == 1:
+            changed, curaic = find_new_ancestor(tree,ss,bestaic)
+        elif move == 2: 
+            changed, curaic = search_ancestors(tree,ss,bestaic)
+        elif move == 3:
+            changed, curaic = search_bifurcating(tree,ss,bestaic)
         else:
-            changed, curaic = find_best_spr(tree,ss)
-            #if changed:
-            #    curaic = search_ancestors(tree,ss)
-        print("\n\nITERATION",i,changed,curaic)
-        if changed:
+            print("need to specify a valid move")
+            sys.exit()
+        print("ITERATION",i,changed,curaic)
+        if curaic < bestaic:
             bestaic = curaic
             besttree = tree.get_newick_repr()
             curbp = bp.decompose_tree(tree,tipdic)
+            lastchange = i
             if curbp not in seen:
                 #print("HERE",curbp,seen,tree.get_newick_repr())
                 seen.add(curbp)
                 outfl.write(str(bestaic)+" "+besttree+"\n")
-    print("BEST",besttree)
+    print("BEST",bestaic,besttree)
     outfl.close()
-    #curaic = search_bifurcating(tree,ss)
     return besttree, bestaic
 
 def make_new_hyp_anc(descendant):
@@ -450,6 +459,7 @@ def make_bifurcating(descendant,hyp_anc = None):
     curpar = descendant.parent
     if curpar.parent != None:
         curpar.parent.children.append(hyp_anc)
+        #print(curpar.label,curpar.parent.label)
         curpar.parent.children.remove(curpar)
         hyp_anc.parent = curpar.parent
 
@@ -491,7 +501,6 @@ def make_ancestor(hyp_anc):
                 oldest = ch.lower
 
     desc = anc.get_sib()
-    #print(anc.label,anc.lower,desc.label,desc.lower)
     desc.parent = anc
     anc.children.append(desc)
     hyp_anc.children = []

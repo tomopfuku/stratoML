@@ -123,6 +123,20 @@ cdef class Node:
             if self.parent.children[i] != self:
                 return self.parent.children[i]
 
+    def inorder(self):
+        if len(self.children)>0:
+            for i,child in enumerate(self.children):
+                if i == 0:
+                    for d in child.inorder():
+                        yield d
+                    yield self
+                else:
+                    for d in child.inorder():
+                        yield d
+        else:
+            yield self
+
+
     def iternodes(self, unsigned int order=PREORDER):#, v=None):
         cdef:
             unsigned int i
@@ -143,4 +157,5 @@ cdef class Node:
             p.remove_child(self)
         return p
 
+        
 

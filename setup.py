@@ -24,10 +24,10 @@ extensions = [
         "stratoML.qmat",
         ["stratoML/qmat.pyx"],
     ),
-    Extension(
-        "stratoML.smaps",
-        ["stratoML/smaps.pyx"],
-    ),
+    #Extension(
+    #    "stratoML.smaps",
+    #    ["stratoML/smaps.pyx"],
+    #),
     Extension(
         "stratoML.stratlike",
         ["stratoML/stratlike.pyx"],

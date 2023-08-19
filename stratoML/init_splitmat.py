@@ -14,7 +14,7 @@ def init_splitmat():
     print("from numpy import array\n\n")
     decl = "cdef long[:,:,:] "
     start = 2
-    stop = 5
+    stop = 6
     for i in range(start,stop):
         decl += f"spltmat{i}"
         if i < stop-1:

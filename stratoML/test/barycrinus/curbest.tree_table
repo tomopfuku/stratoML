@@ -1,0 +1,14 @@
+Name,Code,Start,End,FAD,LAD,Parent
+Costalocrinus_sentosus,2,365.1,359.9,365.0,360.0,1
+Costalocrinus_rex,1,365.11,359.89,365.0,360.0,0
+Meniscocrinus_magnitubus,4,340.1,334.9,340.0,335.0,3
+Costalocrinus_cornutus,3,360.1,339.9,360.0,340.0,1
+Costalocrinus_ibericus,0,370.11,364.89,370.0,365.0,NA
+Barycrinus_stellatus,7,345.1,334.9,345.0,335.0,6
+Barycrinus_spurius,6,360.105,329.895,360.0,330.0,5
+Barycrinus_punctus,8,330.1,324.9,330.0,325.0,6
+Barycrinus_magister,10,355.1,339.9,355.0,340.0,9
+Barycrinus_crassibrachiatus,9,355.20000000000005,334.9,355.0,335.0,6
+Barycrinus_rhombiferus,5,365.09999999999997,324.90000000000003,365.0,325.0,0
+Barycrinus_scitulus,11,360.1,354.9,360.0,355.0,5
+Barycrinus_spectabilis,12,325.1,319.9,325.0,320.0,5

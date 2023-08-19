@@ -17,7 +17,7 @@ def init_buddmat():
     print("import numpy as np\n\n")
     decl = "cdef long[:,:,:] "
     start = 2
-    stop = 5
+    stop = 8
     for i in range(start,stop):
         decl += f"buddmat{i}"
         if i < stop-1:
