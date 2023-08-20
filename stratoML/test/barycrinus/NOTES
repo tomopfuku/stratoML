@@ -1,0 +1,3 @@
+python ../../plot_tree_table.py curbest.tre ranges_cont.tab
+
+python ../../main_prob_tree_anc.py curbest.tre ranges_cont.tab

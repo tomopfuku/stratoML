@@ -4,6 +4,7 @@ import numpy as np
 cimport numpy as np
 import bd
 import sys
+from scipy.special import logsumexp
 
 cpdef double poisson_loglike(double lam, node.Node tree):
     cdef double tf,tl,f,l,samp_time,unsamp_time,lp_samp,lp_unsamp,lp0,lp1,lp01,brlik,treelik = 0.0
@@ -60,6 +61,100 @@ def single_range_mle_optim(double p, double q, double r, node.Node n):
     duration = obs_range + 0.01
     #res = minimize(stratlike.single_range_ll,x0=0.01,args=(p,q,r,obs_range,nch),method="BFGS")#,bounds=(((0.0001,5.0))))
 
+
+def single_range_hpd(double p,double q,double r, node.Node n, double step = 0.01, double quant = .95):
+    cdef double duration, obs_range, r_like, p_like, q_like, loglike, total_h, lower,upper,z,lowerd,upperd, summed
+    cdef bint foundl = False
+    cdef list dist, durations
+
+    #duration = n.lower - n.upper
+    obs_range = n.strat[0] - n.strat[1]
+    duration = obs_range + step
+    dist = []
+    durations = []
+    for _ in range(50000):
+        r_like = np.log(bd.calc_prob_range(r,duration,obs_range))
+        p_like = np.log(bd.prob_n_obs_desc(p,q,r,len(n.children),duration))
+        q_like = np.log(bd.prob_extinction_t(q,duration))
+        loglike = r_like + p_like + q_like
+        dist.append(loglike)
+        durations.append(duration)
+        #loglike = bds_extinct_branch_ll(p,q,r,n)
+        #print(n.labejloglike,duration,duration-obs_range)
+        #if loglike < np.log(0.000000001):
+        if loglike < -300.:
+            break
+        duration += step
+
+    total_h = logsumexp(dist)
+    lowerd = total_h + np.log(.025)
+    upperd = total_h + np.log(.975)
+    z = dist[0]
+    for i in range(1,len(dist)):
+        summed = np.logaddexp(z,dist[i])
+        if summed >= lowerd and foundl == False:
+            lower = durations[i]
+            foundl = True
+        elif summed >= upperd:
+            upper = durations[i]
+            break
+        z = summed
+    #print(n.length,lower,upper)
+    return lower,upper
+
+
+def hyp_anc_hpd(double p,double q,double r, node.Node n, double step = 0.01, double quant = .95):
+    cdef double duration, obs_range, r_like, p_like, q_like, loglike, total_h, lower,upper,z,lowerd,upperd, summed
+    cdef bint foundl = False
+    cdef list dist, durations
+
+    #duration = n.lower - n.upper
+    obs_range = n.strat[0] - n.strat[1]
+    duration = obs_range + step
+    dist = []
+    durations = []
+    for _ in range(50000):
+        loglike = bd.bds_hyp_anc_log_prob(p,q,r,duration)
+        dist.append(loglike)
+        durations.append(duration)
+        if loglike < -300.:
+            break
+        duration += step
+
+    total_h = logsumexp(dist)
+    lowerd = total_h + np.log(.025)
+    upperd = total_h + np.log(.975)
+    z = dist[0]
+    for i in range(1,len(dist)):
+        summed = np.logaddexp(z,dist[i])
+        if summed >= lowerd and foundl == False:
+            lower = durations[i]
+            foundl = True
+        elif summed >= upperd:
+            upper = durations[i]
+            break
+        z = summed
+    #print(n.length,lower,upper)
+    return lower,upper
+
+
+def bds_CIs(double p, double q, double r, node.Node tree):
+    cdef double gap, mllen, f, l, hypanc_len, oldest , obs_range,lower,upper,gap_lower,gap_upper
+    cdef node.Node n, ch
+    cdef dict node_cis = {}
+
+    #hypanc_len = hyp_anc_mle(p,q,r)
+    for n in tree.iternodes(order=1):
+        if n.istip:
+            obs_range = n.strat[0] - n.strat[1]
+            lower,upper = single_range_hpd(p,q,r,n)
+            gap_lower = (lower-obs_range) / 2.0
+            gap_upper = (upper-obs_range) / 2.0
+            #print(gap_lower,n.lower,n.strat[0])
+            node_cis[n] = (n.strat[0] + gap_lower, n.strat[0] + gap_upper)
+        else:
+            node_cis[n] = (n.lower,n.lower)
+    return node_cis
 
 def single_range_mle(double p,double q,double r, node.Node n):
     cdef double duration, obs_range, r_like, p_like, q_like, loglike, best, best_dur

@@ -30,13 +30,15 @@ if __name__ == "__main__":
     stratlike.bds_dates(p,q,r,tree)
 
     print("speciation:",p,"\nextinction:",q,"\npreservation",r,"\n")
-    for n in tree.iternodes():
-        print(n.label,n.lower,n.upper,n.strat[0],n.strat[1])
+    #for n in tree.iternodes():
+    #    print(n.label,n.lower,n.upper,n.strat[0],n.strat[1])
 
     codes = assign_codes(tree)
 
+    node_cis = stratlike.bds_CIs(p,q,r,tree)
+
     outfl = open(".".join(sys.argv[1].strip().split(".")[0:-1])+".tree_table","w")
-    outfl.write("Name,Code,Start,End,FAD,LAD,Parent\n")
+    outfl.write("Name,Code,Start,End,FAD,LAD,2.5HPD,97.5HPD,Parent\n")
     for n in tree.inorder():
         curcode = codes[n]
         if n.parent != None:
@@ -44,7 +46,7 @@ if __name__ == "__main__":
         else:
             parcode = "NA"
         if n.istip:
-            outfl.write(n.label+","+curcode+","+str(n.lower)+","+str(n.upper)+","+str(n.strat[0])+","+str(n.strat[1])+","+parcode+"\n")
+            outfl.write(n.label+","+curcode+","+str(n.lower)+","+str(n.upper)+","+str(n.strat[0])+","+str(n.strat[1])+","+str(node_cis[n][0])+","+str(node_cis[n][1])+","+parcode+"\n")
         else:
-            outfl.write(n.label+","+curcode+","+str(n.lower)+","+str(n.upper)+","+str(n.lower)+","+str(n.upper)+","+parcode+"\n")
+            outfl.write(n.label+","+curcode+","+str(n.lower)+","+str(n.upper)+","+str(n.lower)+","+str(n.upper)+","+str(node_cis[n][0])+","+str(node_cis[n][1])+","+parcode+"\n")
     outfl.close()
