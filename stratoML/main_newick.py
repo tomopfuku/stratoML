@@ -20,6 +20,6 @@ if __name__ == "__main__":
         n.update_pmat(qmats,max(ss))
 
     print(tree.get_newick_repr())
-    tree_utils.tree_search2(tree,ss)
+    tree_utils.tree_search2(tree,ss,"bds")
 
     print(tree.get_newick_repr())

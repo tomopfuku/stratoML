@@ -125,9 +125,9 @@ def pick_spr_prune_regraft_nodes(tree):
 """
 
 
-def find_best_spr(tree,ss,startaic = None):
+def find_best_spr(tree,ss,startaic = None,tree_mod="bds"):
     if startaic == None:
-        startaic,_,_ = calc_tree_ll(tree,ss)
+        startaic,_,_ = calc_tree_ll(tree,ss,tree_mod)
     bestaic = startaic
     for i in range(5):
         nodes = [n for n in tree.iternodes() if n != tree and n.parent != tree]
@@ -148,7 +148,7 @@ def find_best_spr(tree,ss,startaic = None):
 
     for regraft_node in nodes:
         regraft_bif_subtree(pluck_node,regraft_node)
-        curaic,_,_ = calc_tree_ll(tree,ss)
+        curaic,_,_ = calc_tree_ll(tree,ss,tree_mod)
         prune_subtree(pluck_node)
         aics.append((curaic,regraft_node))
     
@@ -205,21 +205,30 @@ def get_possible_ancestors(pluck_node,tree):
     nodes = [nn for nn in tree.iternodes() if nn != pluck_node and nn != pluck_node.parent and nn.istip and nn.strat[0] >= pluck_node.strat[0] and nn.subtree == pluck_node.subtree] #and nn != pluck_node.get_sib()] 
     return nodes
 
-def find_new_ancestor(tree,ss,startaic=None):
+def find_new_ancestor(tree,ss,startaic=None,tree_mod="bds"):
     descnodes = find_all_possible_descendant_nodes(tree)
     if startaic == None:
-        startaic,_,_ = calc_tree_ll(tree,ss)
+        startaic,_,_ = calc_tree_ll(tree,ss,tree_mod)
     bestaic = startaic
-    pluck_node = choose_descnode(descnodes)# random.choice(descnodes)
+    pluck_node = choose_descnode(descnodes)    # random.choice(descnodes)
     prev_par, sib = prune_subtree(pluck_node)
     if sib:
         spare_hyp_anc = pluck_node.parent
     nodes = get_possible_ancestors(pluck_node,tree) #[nn for nn in tree.iternodes() if nn != pluck_node and nn != pluck_node.parent and nn != pluck_node.get_sib() and nn.istip and nn.strat[0] >= pluck_node.strat[0] and nn.subtree == pluck_node.subtree]
+    if len(nodes) == 0:
+        print("FOUND NO ANCESTORS",pluck_node.label,pluck_node.parent,pluck_node.parent.label,tree)
+        if sib:
+            pluck_node.parent = spare_hyp_anc
+            regraft_bif_subtree(pluck_node,sib)
+        else:
+            regraft_AD_subtree(pluck_node,prev_par)
+        return False,bestaic
+
     aics = []
     #allseen = []
     for regraft_node in nodes:
         regraft_AD_subtree(pluck_node,regraft_node)
-        curaic,_,_ = calc_tree_ll(tree,ss)
+        curaic,_,_ = calc_tree_ll(tree,ss,tree_mod)
         #allseen.append((curaic,tree.get_newick_repr()))
         prune_subtree(pluck_node)
         aics.append((curaic,regraft_node))
@@ -255,36 +264,46 @@ def random_spr(tree):
     regraft_subtree(pluck_node,regraft_node)
     return pluck_node,prev_par,sib
 
-def calc_tree_ll(tree,ss):
-    stratlike.calibrate_brlens_strat(tree)
+def calc_tree_ll(tree,ss,tree_model="bds"):
+    stratlike.calibrate_brlens_strat(tree,0.2)
 
     qmats = qmat.Qmat(0.01,0.05)
     #for n in tree.iternodes():
     #    n.update_pmat(qmats,max(ss))
 
-    pqr_start = np.array([0.5,0.5,1.0])
-    res = basinhopping(stratlike.bds_neg_ll,x0=pqr_start,niter=5,minimizer_kwargs={"method":"L-BFGS-B","args":(tree),"bounds":((0.00001,10),(0.00001,10),(0.00001,20))})
-    p = res.x[0]
-    q = res.x[1]
-    r = res.x[2]
-    stratlike.bds_dates(p,q,r,tree)
-    bdsll = stratlike.bds_loglike(p,q,r,tree)
-    #for n in tree.iternodes():
-    #    n.update_pmat(qmats,max(ss))
-    res_tr = minimize(mfc.evaluate_m_l,x0=np.array([0.1,0.0002]),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,0.2),(0.00001,0.2)))
-
-    tree_ll = bdsll+-res_tr.fun 
-    numnodes = float(len([n for n in tree.iternodes()]) - 1)
-    nparam = numnodes + 3.0 + 2.0
+    if tree_model == "bds":
+        pqr_start = np.array([0.5,0.5,1.0])
+        res = basinhopping(stratlike.bds_neg_ll,x0=pqr_start,niter=5,minimizer_kwargs={"method":"L-BFGS-B","args":(tree),"bounds":((0.00001,10),(0.00001,10),(0.00001,20))})
+        p = res.x[0]
+        q = res.x[1]
+        r = res.x[2]
+        stratlike.bds_dates(p,q,r,tree)
+        bdsll = stratlike.bds_loglike(p,q,r,tree)
+        res_tr = minimize(mfc.evaluate_m_l,x0=np.array([0.1,0.0002]),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,0.2),(0.00001,0.2)))
+        tree_ll = bdsll+-res_tr.fun 
+        nparam = 3.0 + 2.0
+    else:
+        res_st = minimize(stratlike.poisson_neg_ll,x0=np.array([1.0]),args=(tree),method="Nelder-Mead")
+        bdsll = res_st.fun
+        res_tr = minimize(mfc.evaluate_m_l,x0=np.array([0.1,0.0002]),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,0.2),(0.00001,0.2)))
+        tree_ll = -res_tr.fun + res_st.fun
+        nparam = 1.0 + 2.0
+        #print(res_st.fun,bdsll,res_tr.fun)
+        #print(stratlike.poisson_loglike(1.0,tree))
+        #print(res_st)
+        #sys.exit()
+    nparam += float(len([n for n in tree.iternodes()]) - 1)
+   
     aic = (2. * nparam) - (2. * tree_ll) 
+
     return aic,-res_tr.fun,bdsll
 
 
 # this function tries to insert hypothetical ancestors into all possible AD pairs
 # TODO need to fix so that it works for ancestors with MULTIPLE descendants
-def search_bifurcating(tree,ss,startaic = None):
+def search_bifurcating(tree,ss,startaic = None,tree_mod="bds"):
     if startaic == None:
-        startaic,_,_ = calc_tree_ll(tree,ss)
+        startaic,_,_ = calc_tree_ll(tree,ss,tree_mod)
 
     bestaic = startaic
     testnodes = []
@@ -298,7 +317,7 @@ def search_bifurcating(tree,ss,startaic = None):
     if len(testnodes) > 0:
         for n in testnodes:
             make_bifurcating(n)
-            curaic,_,_ = calc_tree_ll(tree,ss)
+            curaic,_,_ = calc_tree_ll(tree,ss,tree_mod)
             aics.append((curaic,n))
             make_ancestor(n.parent)
 
@@ -313,7 +332,7 @@ def search_bifurcating(tree,ss,startaic = None):
                 seenpar[curbif] = True
 
             make_bifurcating(curbif)
-            curaic,morph,strat = calc_tree_ll(tree,ss)
+            curaic,morph,strat = calc_tree_ll(tree,ss,tree_mod)
 
             if curaic < bestaic:
                 bestaic = curaic
@@ -325,9 +344,9 @@ def search_bifurcating(tree,ss,startaic = None):
 
 
 
-def search_ancestors(tree,ss,startaic = None):
+def search_ancestors(tree,ss,startaic = None,tree_mod="bds"):
     if startaic == None:
-        startaic,_,_ = calc_tree_ll(tree,ss)
+        startaic,_,_ = calc_tree_ll(tree,ss,tree_mod)
 
     testnodes = []
     for n in tree.iternodes():
@@ -355,7 +374,7 @@ def search_ancestors(tree,ss,startaic = None):
     if len(testnodes) > 0:
         for n in testnodes:
             desc = make_ancestor(n)
-            curaic,_,_ = calc_tree_ll(tree,ss)
+            curaic,_,_ = calc_tree_ll(tree,ss,tree_mod)
 
             aics.append((curaic,n))
             make_bifurcating(desc,n)
@@ -365,7 +384,7 @@ def search_ancestors(tree,ss,startaic = None):
         for tup in aics:
             curanc = tup[1]
             make_ancestor(curanc)
-            curaic,morph,strat = calc_tree_ll(tree,ss)
+            curaic,morph,strat = calc_tree_ll(tree,ss,tree_mod)
             if curaic < bestaic:
                 bestaic = curaic
                 changed = True
@@ -392,9 +411,9 @@ def tree_search(tree, ss):
     print(bestll)
     print(besttree)
 
-def tree_search2(tree,ss):
+def tree_search2(tree,ss,tree_mod="bds"):
     stratlike.calibrate_brlens_strat(tree,0.3)
-    bestaic,_,_ = calc_tree_ll(tree,ss)
+    bestaic,_,_ = calc_tree_ll(tree,ss,tree_mod)
     print("STARTING AIC:",bestaic)
     besttree = tree.get_newick_repr()
     tipdic = bp.get_tip_indices(tree)
@@ -402,26 +421,27 @@ def tree_search2(tree,ss):
     seen = set([curbp])
     nums = [0,1,2,3] # 0 = spr; 1 = find_new_ancestor; 2 = search_ancestors; 3 = search_bifurcating
     weights = [0.4,0.4,0.1,0.1]
-    weights = [0.45,0.45,0.1,0.0]
+    #weights = [0.45,0.45,0.1,0.0]
+    weights = [0.5,0.5,0.0,0.0]
     outfl = open("stratoML.outtrees","w")
     outfl.write(str(bestaic)+" "+besttree+"\n")
     lastchange = 0
     for i in range(100):
-        if i-lastchange >=20:
+        if i-lastchange >=6:
             break
         move = random.choices(population=nums,weights=weights,k=1)[0] 
         if move == 0:
-            changed, curaic = find_best_spr(tree,ss,bestaic)
+            changed, curaic = find_best_spr(tree,ss,bestaic,tree_mod)
         elif move == 1:
-            changed, curaic = find_new_ancestor(tree,ss,bestaic)
+            changed, curaic = find_new_ancestor(tree,ss,bestaic,tree_mod)
         elif move == 2: 
-            changed, curaic = search_ancestors(tree,ss,bestaic)
+            changed, curaic = search_ancestors(tree,ss,bestaic,tree_mod)
         elif move == 3:
-            changed, curaic = search_bifurcating(tree,ss,bestaic)
+            changed, curaic = search_bifurcating(tree,ss,bestaic,tree_mod)
         else:
             print("need to specify a valid move")
             sys.exit()
-        print("ITERATION",i,changed,curaic)
+        print("ITERATION",i,changed,curaic,move)
         if curaic < bestaic:
             bestaic = curaic
             besttree = tree.get_newick_repr()
@@ -490,7 +510,7 @@ def make_ancestor(hyp_anc):
         anc = hyp_anc.children[1]
     elif hyp_anc.children[1].istip == False:
         anc = hyp_anc.children[0]
-    elif hyp_anc.children[0].lower == hyp_anc.children[1].upper:
+    elif hyp_anc.children[0].lower == hyp_anc.children[1].lower:
         anc = random.choice(hyp_anc.children)
     else:
         oldest = 0.0

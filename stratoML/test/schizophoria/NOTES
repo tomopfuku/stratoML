@@ -1,0 +1,5 @@
+python ../../main_newick.py schizophoria.stratophen.tre schizophoria.fa schizophoria.ranges.cont.csv
+
+python ../../plot_tree_table.py curbest.tre schizophoria.ranges.cont.csv
+
+python ../../main_prob_tree_anc.py curbest.tre schizophoria.ranges.cont.csv 

@@ -1,11 +1,16 @@
 #import sys
 import math
 
+# prob of observing a _clade_ of unknown size from Didier 2017 via Wagner 2019
 cpdef double prop_pres_taxa(double b,double d,double r): 
     cdef double top,bot
     top = (b+d+r) - math.sqrt((b+d+r)**2 - (4.0*b*d))
     bot = 2.0 * b
     return 1.0 - (top / bot)
+
+# Pp given by Solow and Smith 1996 via Foote 1997
+cpdef double prob_species_pres(double q, double r):
+    return (r/(q+r))
 
 """
 def calc_prob_unsamp(b,d,r,unsamp):
@@ -15,6 +20,7 @@ def calc_prob_unsamp(b,d,r,unsamp):
     return top / bot
 """
 
+# probability of observing strat range given lineage duration from Foote 1997
 cpdef double calc_prob_range(double r, double true_range, double obs_range):
     cdef double like
 
@@ -24,6 +30,7 @@ cpdef double calc_prob_range(double r, double true_range, double obs_range):
         like = r*(true_range)*math.exp(-r*true_range)
     return like
 
+# poisson probability of not preserving over time_range
 cpdef double calc_non_pres(double r, double true_range):
     return math.exp(-r*true_range)    
 
@@ -47,7 +54,8 @@ cpdef double bds_hyp_anc_prob(double p, double q, double r, double time):
 
 cpdef double prob_extinction_t(double q, double time):
     cdef double prob_qt
-    prob_qt = math.exp(-q*time) - math.exp(-q*(time+0.000001))
+    #prob_qt = math.exp(-q*time) - math.exp(-q*(time+0.000001))
+    prob_qt = q * math.exp(-q*time)
     return prob_qt
 
 cpdef double prob_n_desc(double p, double n,double duration):
