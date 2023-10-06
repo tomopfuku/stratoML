@@ -51,7 +51,9 @@ cdef class Qmat:
         cdef double[:,:] qmat = self.get_qmat(nstates)
         cdef long[:,:] smap = smaps.get_smap(nstates)
         cdef double scalar = 2.0 / float(nstates)
-        
+
+        #print(nstates)
+        #print(smaps.get_smap(nstates)) 
         nrow = len(qmat)
         for i in range(nrow):
             qmat[i][i] = 0.0

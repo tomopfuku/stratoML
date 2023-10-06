@@ -216,7 +216,8 @@ def find_new_ancestor(tree,ss,startaic=None,tree_mod="bds"):
         spare_hyp_anc = pluck_node.parent
     nodes = get_possible_ancestors(pluck_node,tree) #[nn for nn in tree.iternodes() if nn != pluck_node and nn != pluck_node.parent and nn != pluck_node.get_sib() and nn.istip and nn.strat[0] >= pluck_node.strat[0] and nn.subtree == pluck_node.subtree]
     if len(nodes) == 0:
-        print("FOUND NO ANCESTORS",pluck_node.label,pluck_node.parent,pluck_node.parent.label,tree)
+        #print("FOUND NO ANCESTORS",pluck_node.label,pluck_node.parent,pluck_node.parent.label,tree)
+        print("FOUND NO ANCESTORS")
         if sib:
             pluck_node.parent = spare_hyp_anc
             regraft_bif_subtree(pluck_node,sib)
@@ -411,7 +412,7 @@ def tree_search(tree, ss):
     print(bestll)
     print(besttree)
 
-def tree_search2(tree,ss,tree_mod="bds"):
+def tree_search2(tree,ss,tree_mod="bds",anc_start=False):
     stratlike.calibrate_brlens_strat(tree,0.3)
     bestaic,_,_ = calc_tree_ll(tree,ss,tree_mod)
     print("STARTING AIC:",bestaic)
@@ -420,14 +421,20 @@ def tree_search2(tree,ss,tree_mod="bds"):
     curbp = bp.decompose_tree(tree,tipdic)
     seen = set([curbp])
     nums = [0,1,2,3] # 0 = spr; 1 = find_new_ancestor; 2 = search_ancestors; 3 = search_bifurcating
-    weights = [0.4,0.4,0.1,0.1]
+    #weights = [0.4,0.4,0.1,0.1]
     #weights = [0.45,0.45,0.1,0.0]
     weights = [0.5,0.5,0.0,0.0]
+    #weights = [0.,1.,0.,0.]
     outfl = open("stratoML.outtrees","w")
     outfl.write(str(bestaic)+" "+besttree+"\n")
     lastchange = 0
-    for i in range(100):
-        if i-lastchange >=6:
+    if anc_start == True:
+        changed, curaic = search_ancestors(tree,ss,bestaic,tree_mod)
+    else:
+        changed = False
+        curaic = bestaic
+    for i in range(200):
+        if i-lastchange >=30:
             break
         move = random.choices(population=nums,weights=weights,k=1)[0] 
         if move == 0:
@@ -447,8 +454,8 @@ def tree_search2(tree,ss,tree_mod="bds"):
             besttree = tree.get_newick_repr()
             curbp = bp.decompose_tree(tree,tipdic)
             lastchange = i
+            print("CURRENT:",bestaic,tree.get_newick_repr())
             if curbp not in seen:
-                #print("HERE",curbp,seen,tree.get_newick_repr())
                 seen.add(curbp)
                 outfl.write(str(bestaic)+" "+besttree+"\n")
     print("BEST",bestaic,besttree)

@@ -1,0 +1,32 @@
+#NEXUS 
+
+Begin trees;  [Treefile saved Thu Aug 31 15:40:00 2023]
+[!
+>Consensus of 9 trees
+>
+>Source of trees from which consensus(es) calculated...
+>Branch-and-bound search settings:
+>  Optimality criterion = parsimony (Goloboff fit with k=10)
+>    Character-status summary:
+>      Of 35 total characters:
+>        All characters are of type 'unord'
+>        All characters have equal weight
+>        6 characters are parsimony-uninformative
+>        Number of parsimony-informative characters = 29
+>    Gaps are treated as "missing"
+>    Multistate taxa interpreted as polymorphism
+>  Initial upper bound: unknown (compute heuristically)
+>  Addition sequence: furthest
+>  Initial 'Maxtrees' setting = 100
+>  Branches collapsed (creating polytomies) if maximum branch length is zero
+>  'MulTrees' option in effect
+>  No topological constraints in effect
+>  Trees are unrooted
+>
+>Branch-and-bound search completed:
+>  Score of best tree found = -23.34530
+>  Number of trees retained = 9
+>  Time used = 0.80 sec (CPU time = 0.70 sec)
+]
+	tree Adams = [&R] ((((((((Micraster_coranguinum,(Micraster_cortesudinarium,Micraster_schroederi,(Gibbaster_gibbus,Gibbaster_senonensus))),Micraster_rogalae),Micraster_quebrada),Micraster_turonensis),Micraster_brevis,Micraster_uddeni),Micraster_corbovis),Micraster_leskei),(Ovulaster_zignoi,(Ovulaster_auberti,Ovulaster_reticulatus)),Turanglaster_nazkii);
+end;

@@ -47,4 +47,4 @@ if __name__ == "__main__":
     tree = tree_reader.read_tree_string(nwk)
     tree_utils.map_strat_to_tree(tree,sys.argv[2])
     nodes = [n for n in tree.iternodes()]
-    reroot_tree(tree,nodes[5])
+    reroot_tree(tree,nodes[4])

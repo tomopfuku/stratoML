@@ -1,0 +1,11 @@
+python3 ../../polymorphism/code/stratophen.py micrasteridae-stratigraphy_global.csv micrasteridae-character_matrix.fa none range_times.csv
+
+python3 ../../main_newick.py micrasteridae-stratophenetic.rr.tre micrasteridae-character_matrix.fa micrasteridae-stratigraphy_abs.csv
+
+python3 ../../main_newick.py micrasteridae-parsimony.rr.txt micrasteridae-character_matrix.fa micrasteridae-stratigraphy_abs.csv
+
+python3 ../../plot_tree_table.py curbest.tre micrasteridae-stratigraphy_abs.csv
+
+
+python3 get_n_states.py micrasteridae-character_matrix.fa
+

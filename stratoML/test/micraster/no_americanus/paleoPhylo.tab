@@ -1,0 +1,17 @@
+Name,Code,Start,End,Parent
+Micraster_schroederi,4,83.6,69.05,3
+Micraster_coranguinum,3,88.05,83.6,2
+Micraster_cortesudinarium,2,90.825,86.3,1
+Micraster_quebrada,6,84.95,84.275,5
+Micraster_turonensis,5,87.175,83.6,2
+Micraster_uddeni,7,85.625,84.95,5
+Micraster_brevis,8,89.8,88.05,2
+Micraster_rogalae,9,87.175,85.625,2
+Gibbaster_senonensus,11,77.85,72.1,10
+Gibbaster_gibbus,10,83.6,72.1,2
+Micraster_corbovis,1,91.85,89.8,0
+Micraster_leskei,0,92.875,88.05,NA
+Ovulaster_reticulatus,14,72.1,69.05,13
+Ovulaster_auberti,13,77.85,69.05,12
+Ovulaster_zignoi,15,72.1,66,13
+Turanglaster_nazkii,12,83.6,72.1,0

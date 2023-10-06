@@ -15,6 +15,7 @@ if __name__ == "__main__":
     tree = tree_reader.read_tree_string(nwk)
     tree_utils.map_strat_to_tree(tree,sys.argv[3])    
     tree_utils.map_tree_disc_traits(tree,retraits,ss)
+    
     qmats = qmat.Qmat(0.01,0.05)
     for n in tree.iternodes():
         n.update_pmat(qmats,max(ss))

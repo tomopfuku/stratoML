@@ -1,0 +1,22 @@
+genus,species,la1_la2_separated,labral_plate,anterior_paired_angle_0:<110;1:>110<120;2=>120,posterior_paired_angle_0:<50;1:>50<65;2=>65,width of poriferous zone,lower_surface_shape,subanal_bulges,phyllode_development,"gibbous_(tall_apex,steep_posterior_slope)",eccentricity_0-central;1-medium;2-eccentric,plastron_structure_0-symmetrical;2-asymmetric,perradial_morphology_0-smooth;1-inflated;2-sutured;3-subdivided,(22); madreporite_pattern,madreporite touches o4,(24); madreporite size,petals_sunken_flush_0-flush;1-shallowtomoderate;2-deep,paired_ambulacara_petaloid,ambulacara_3_petaloid,anterior groove depth_0-none;1-shallow;2-deep,groove_down_midline_of_posterior_paired_petals,rostrum,carina_(0abs;1slight;2strong),sub-anal fasciole,peripetalous_fasciole,outer pore pairs in paired petals_0-circular;1-ovals;2-tear/elongate,labrum_projection_0-weak;1-moderate;2-strong,sub-anal heel,periproct_position_0-high;1-med;2-low,labrum_rim,location of widest point_0-anterior;1-medial,test_breadth_0-longer;1-equal;2-broader,test_height_0-flat;1-inflated,peristome position_0-medial;1-anterior;2-marginal,peristome_direction_0-forward;1-downward,periproct shape_0-circular;1-oval
+Micraster,coranguinum,0,0&1,0&1,1,0,0,1,1,0,1,0,1&3,2,1,1,1,1,0,1&2,0&1,0&1,2,1,0,1,2,0,1,?,1,1,1,1&2,0,0
+Micraster,cortesudinarium,0&1,0&1,0&1,1&2,2,0,1,1,0,1,0&1,1&3,0&1&2,0&1,1,1&2,1,0,1&2,0&1,0&1,0&1&2,1,0,1&2,1&2,0,1,?,1,1,1,1&2,0,0
+Micraster,leskei,0,0,0&1,1,0,0,0,0,0,2,1,0&1&2,0&2,0&1,0,2,1,0,1,0,0&1,0&1&2,1,0,0&1&2,0&1,0,0,1,0,0,0&1,0&1,0,0
+Micraster,corbovis (leskei),0,0,0&1,1,0,0,0,0,0,2,1,0&1,2,0,1,2,1,0,1,0,0&1,0&1,1,0,2,1,0,0,1,0,0,0&1,0&1,0,0
+Micraster,michelini,0,0,1&2,0,0,0,0,?,0,0&1,1,?,0,0,0,2,1,0,1,0,0,1,0&1,0,2,0,1,1,1,1,1,1,0,1,1
+Micraster,laxoporus,0,0,1&2,0,0,0,0,?,0,0&1,1,?,0,0,0,2,1,0,1,0,0,1,0&1,0,2,0,1,1,1,1,1,1,0,1,1
+Micraster,carentonensis,0,0,1&2,0,0,0,0,?,0,0&1,1,?,0,0,0,2,1,0,1,0,0,1,0&1,0,2,0,1,1,1,1,1,1,0,1,1
+Micraster,turonensis,0,0,2,1,2,0,0&1,1,0,1,0,1&3,0&1&2&3,1,1,1,1,0,1&2,0,0&1,1&2,1,0,2,0&1,0,1,1,1,2,1,1,0,1
+Micraster,rogalae,0,0,0,1,0,0,0,?,0,1,0,3,0&2&3,0&1,0,1,1,0,2,?,1,2,1,0,2,1,0,0,0,1,1,0,1,0,1
+Micraster,schroederi,1,1,0&1,0&1,1&2,0,1,1,0,1,0,1&2&3,0&1&2&3,0&1,0&1,1&2,1,0,1&2,0&1,0&1,1&2,1,0,2,2,0,1,0,1,1,0&1,2,0,0&1
+Micraster,quebrada,0,0,1,1,0,0,0,?,0,1,0&1,1,3,1,0,1&2,1,0,1,0,0,2,0&1,0,2,0,1,1,1,1,0&1,0&1,1,1,1
+Micraster,brevis,0,0,1,1,0,0,0,?,0,1,1,?,0&2,0&1,1,1,1,0,1,0,0,0,0&1,0,2,1&2,0,2,?,1,1&2,1,1&2,0,0&1
+Micraster,woodi,0,0,2,1,0,0,0,?,1,1,1,1&2,0&2,0,1,1&2,1,0,1,0,0&1,0,0&1,0,2,0&1,0,2,?,1,0,1,1,0,0&1
+Micraster,uddeni,0,0,2,1,1,?,0,?,0,0,?,?,?,?,?,1,1,0,2,0,0,0,1,0,2,?,0,2,?,1,2,0,?,?,?
+Micraster,americanus,?,?,0,0,2,0,1,?,0,0,1,?,?,?,?,2,1,1,1,0,0,0,1,1,1&2,0,0,0,1,0,0,0,0,1,1
+Gibbaster,gibbus,0&1,0,1,1&2,2,0,1,?,1,1,0,?,0&2,1,1,2,1,1,2,0,1,0,0&1,0,2,2,0,2,0,1,1,1,1&2,0,?
+Gibbaster,senonensus,0&1,0&1,0,2,2,0,1,?,1,0,0,1&2,0,0&1,1,1,1,1,2,0,1,0,0,0,2,2,0,2,0,1,1,1,1&2,0,?
+Ovulaster,zignoi,?,?,2,0,0,1,0,?,0,2,0,?,?,?,?,0,0,0,1,0,0,0,1,0,0,0,1,0,0,1,0,1,1,1,1
+Ovulaster,auberti,0,0,2,0,0,1,0,?,0,2,0,?,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,1,1
+Ovulaster,reticulatus,0,0,2,0,0,0,0,?,0,2,0,?,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,1,1
+Turanglaster,nazkii,?,?,2,1,0,1,0,?,0,0,0,?,0,0,0,0,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,1,1,1,0
