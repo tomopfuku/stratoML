@@ -1,0 +1,26 @@
+#NEXUS
+
+BEGIN TREES;
+
+	TRANSLATE
+		1	nus_crassibrachiatus,
+		2	Barycrinus_magister,
+		3	Barycrinus_punctus,
+		4	Barycrinus_rhombiferus,
+		5	Barycrinus_scitulus,
+		6	Barycrinus_spectabilis,
+		7	Barycrinus_spurius,
+		8	Barycrinus_stellatus,
+		9	Costalocrinus_cornutus,
+		10	Costalocrinus_ibericus,
+		11	Costalocrinus_rex,
+		12	Costalocrinus_sentosus,
+		13	Meniscocrinus_magnitubus
+;
+
+	TREE	Tree_1 = 	[&R]	((12,(((13)9)11,(((6)4,((2,((3)8)1))7))5)))10;
+	TREE	Tree_2 = 	[&R]	((12,(((13)9)11,(5,((6)4,((2,((3)8)1))7)))))10;
+;
+
+END;
+

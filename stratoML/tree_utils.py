@@ -434,7 +434,7 @@ def tree_search2(tree,ss,tree_mod="bds",anc_start=False):
         changed = False
         curaic = bestaic
     for i in range(200):
-        if i-lastchange >=30:
+        if i-lastchange >=50:
             break
         move = random.choices(population=nums,weights=weights,k=1)[0] 
         if move == 0:

@@ -1,0 +1,45 @@
+#NEXUS 
+
+Begin data;
+    Dimensions ntax=18 nchar=36;
+    Format datatype=standard symbols="0123456789ABCDEFGHYJKLMNZP" gap=- missing=?;
+    Matrix
+	Micraster_coranguinum	0{01}{01}10011010{13}211110{12}{01}{01}2101201?111{12}00{789ABC}
+	Micraster_cortesudinarium	{01}{01}{01}{12}201101{01}{13}{012}{01}1{12}10{12}{01}{01}{012}10{12}{12}01?111{12}00{45678}
+	Micraster_leskei	00{01}10000021{012}{02}{01}021010{01}{012}10{012}{01}00100{01}{01}00{23456}
+	Micraster_michelini	00{12}0000?0{01}1?0002101001{01}020111111011{01234}
+	Micraster_laxoporus	00{12}0000?0{01}1?0002101001{01}020111111011{789ABCDEFGH}
+	Micraster_carentonensis	00{12}0000?0{01}1?0002101001{01}020111111011{ABCDE}
+	Micraster_turonensis	002120{01}1010{13}{0123}11110{12}0{01}{12}102{01}011121101{89ABC}
+	Micraster_rogalae	0001000?0103{023}{01}01102?121021000110101{89}
+	Micraster_schroederi	11{01}{01}{12}011010{123}{0123}{01}{01}{12}10{12}{01}{01}{12}102201011{01}20{01}{DEFGHY}
+	Micraster_quebrada	0011000?01{01}1310{12}101002{01}0201111{01}{01}111{B}
+	Micraster_brevis	0011000?011?{02}{01}11101000{01}02{12}02?1{12}1{12}0{01}{56789}
+	Micraster_uddeni	00211?0?00?????1102000102?02?120???{A}
+	Gibbaster_gibbus	{01}01{12}201?110?{02}112112010{01}022020111{12}0?{ABCDEF}
+	Gibbaster_senonensus	{01}{01}02201?100{12}0{01}111120100022020111{12}0?{FG}
+	Ovulaster_zignoi	??20010?020????00010001000100101111{HYJK}
+	Ovulaster_auberti	0020010?020?00000000001000000001111{FGHY}
+	Ovulaster_reticulatus	0020000?020?00000000001000000001111{HY}
+	Turanglaster_nazkii	??21010?000?00000010001100000001110{DEFG}
+    ;
+End;
+
+BEGIN ASSUMPTIONS;
+	TYPESET * UNTITLED  = unord: 1-35, strat: 36;
+	WTSET * UNTITLED  = 1.00: 1-36;
+END;
+
+BEGIN TREES;
+
+	TREE Tree_1 = [&R] ((((((((Micraster_coranguinum,(Micraster_cortesudinarium,(Micraster_schroederi,(Gibbaster_gibbus,Gibbaster_senonensus)))),Micraster_rogalae),Micraster_turonensis),Micraster_uddeni),Micraster_brevis),Micraster_leskei),((Micraster_michelini,(Micraster_laxoporus,Micraster_carentonensis)),Micraster_quebrada)),(Ovulaster_zignoi,((Ovulaster_auberti,Ovulaster_reticulatus),Turanglaster_nazkii)));
+
+END;
+
+BEGIN STRATAPHY;
+		MAXTREES=5000;
+		SEARCHREPS=500;
+		ANCREPS=1;
+		ANCTYPE=heuristic;
+		outgroup Ovulaster_zignoi Ovulaster_auberti Ovulaster_reticulatus Turanglaster_nazkii;
+END;

@@ -1,0 +1,35 @@
+#NEXUS 
+
+Begin data;
+    Dimensions ntax=13 nchar=15;
+    Format datatype=standard symbols="0123456789ABCDEFGHYJKLMNZP" gap=- missing=?;
+    Matrix
+
+Barycrinus_crassibrachiatus	{01}10{12}00{01}1021201{3456}
+Barycrinus_magister	0{01}1200010202??{345}
+Barycrinus_punctus	020120010??2??{8}
+Barycrinus_rhombiferus	{01}{01}{01}{01}{01}{012}010202{01}1{12345678}
+Barycrinus_scitulus	01001{12}{01}1020211{2}
+Barycrinus_spectabilis	00100{01}01020201{9}
+Barycrinus_spurius	{01}{12}0{12}{01}0{01}1021201{234567}
+Barycrinus_stellatus	{01}2012{01}{01}1020221{56}
+Costalocrinus_cornutus	{01}{12}012{01}{01}00100{12}1{2345}
+Costalocrinus_ibericus	01001000010011{0}
+Costalocrinus_rex	010021000?00??{1}
+Costalocrinus_sentosus	01001000000020{1}
+Meniscocrinus_magnitubus	?2012{01}00110111{6}
+
+    ;
+End;
+
+BEGIN ASSUMPTIONS;
+	TYPESET * UNTITLED  = unord: 1-14, strat: 15;
+	WTSET * UNTITLED  = 1.00: 1-15;
+END;
+
+BEGIN STRATAPHY;
+		MAXTREES=5000;
+		SEARCHREPS=100;
+		ANCREPS=1;
+		ANCTYPE=heuristic;
+END;

@@ -1,0 +1,31 @@
+#NEXUS
+
+BEGIN TREES;
+
+	TRANSLATE
+		1	Micraster_coranguinum,
+		2	Micraster_cortesudinarium,
+		3	Micraster_leskei,
+		4	Micraster_michelini,
+		5	Micraster_laxoporus,
+		6	Micraster_carentonensis,
+		7	Micraster_turonensis,
+		8	Micraster_rogalae,
+		9	Micraster_schroederi,
+		10	Micraster_quebrada,
+		11	Micraster_brevis,
+		12	Micraster_uddeni,
+		13	Gibbaster_gibbus,
+		14	Gibbaster_senonensus,
+		15	Ovulaster_zignoi,
+		16	Ovulaster_auberti,
+		17	Ovulaster_reticulatus,
+		18	Turanglaster_nazkii
+;
+
+	TREE	Tree_1 = 	[&R]	((((((((((14)13,9))1,8),(12)7))2)11)3,(((10)6)5)4),(((15,17))16)18);
+	TREE	Tree_2 = 	[&R]	((((11,((((((14)13,9))1,8),(12)7))2))3,(((10)6)5)4),(((15,17))16)18);
+;
+
+END;
+
