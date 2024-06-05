@@ -548,7 +548,7 @@ def map_strat_to_tree(tree, flnm):
     fl = open(flnm, "r")
     fl.readline()
     ranges = {}
-        
+
     for line in fl:
         spls = line.strip().split()
         spnm = spls[0]

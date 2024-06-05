@@ -2,7 +2,7 @@ import node,tree_reader,tree_utils
 import stratlike
 import sys
 import numpy as np
-from scipy.optimize import basinhopping 
+from scipy.optimize import basinhopping
 
 def assign_codes(tree):
     nn = 0

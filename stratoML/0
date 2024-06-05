@@ -26,19 +26,14 @@ def calc_desc_probs(p,q,r,n_chld,obs_range,duration):
     probs = []
     for n_chld,val in enumerate(rel):
         curp = val/sumrel
+        #probs.append(str(round(val/sumrel,3)))
         probs.append(curp)
+
     return(probs)
 
-def expect_desc(p,q,r,n_chld,obs_range,duration):
-    probs = calc_desc_probs(p,q,r,n_chld,obs_range,duration)
-    expect = [i for i,j in enumerate(probs) if j == max(probs)][0]
-    weight_expect = 0.0
-    for i, p in enumerate(probs):
-        weight_expect += (i + 1) * p
-    return [expect, weight_expect - 1.0]
 
 def calc_cum_desc_probs(p,q,r,n_chld,obs_range,duration):
-    probs = calc_desc_probs(p,q,r,n_chld,obs_range,duration)
+    probs = calc_desc_probs(p,q,r,n_child,obs_range,duration)
     cump = []
     for n_chld,val in enumerate(probs):
         if n_chld == 0:
@@ -85,56 +80,13 @@ for n in tree.iternodes():
         probs = calc_cum_desc_probs(p,q,r,n_chld,obs_range,duration)
         alltax.append(n.label.strip().split("_")[-1])
         allprobs.append(np.array(probs))
-        tax_expect[n.label] = [n_chld] + expect_desc(p,q,r,n_chld,obs_range,duration)
+        for i in probs:
+            
+        tax_expect[n.label] = 
         #print(n.label," ".join([str(round(i,2)) for i in probs]))
 
-
-"""
-expect_count_mat = {0:[],1:[],2:[],3:[],4:[],5:[],6:[],7:[]}
-
-for exp in range(8):
-    expect_count_mat[exp] = [0 for i in range(len(expect_count_mat))]
-
-
-for i in tax_expect:
-    ex = tax_expect[i]
-    obs = ex[0]
-    exp = ex[1]
-
-    expect_count_mat[exp][obs] += 1
-
-print(expect_count_mat)
-expect = pd.DataFrame(expect_count_mat).transpose()#,columns=["E"+str(i) for i in range(8)],index = ["O"+str(i) for i in range(8)])
-print(expect)
-with sns.axes_style("white"):
-    ax=sns.heatmap(expect,annot=True,cmap="Greys",cbar=False)
-    ax.xaxis.tick_top()
-    ax.tick_params(left=False, top=False)
-plt.show()
-"""
-
-expect_df = pd.DataFrame(tax_expect).transpose().rename(columns={0:"n_obs",1:"expect_mle",2:"expect_weighted"})
-plt.plot(expect_df["expect_weighted"],expect_df["n_obs"],"o")
-plt.ylabel("num observed desc")
-plt.xlabel("weighted expected num desc")
-plt.show()
-
-
-plt.plot(np.linspace(-0.5,7.5,20),np.linspace(-0.5,7.5,20),color="grey")
-sns.boxplot(data=expect_df,y="n_obs",x="expect_weighted",orient="h",color="grey")
-#sns.boxplot(data=expect_df,x="n_obs",y="expect_weighted",color="grey")
-plt.xlim((-0.5,7.5))
-plt.ylim((-0.5,7.5))
-plt.show()
-
-expect_df = pd.DataFrame(tax_expect).transpose().rename(columns={0:"n_obs",1:"expect_mle",2:"expect_weighted"})
-plt.plot(expect_df["expect_mle"],expect_df["n_obs"],"o")
-plt.ylabel("num observed desc")
-plt.xlabel("mle expected num desc")
-plt.show()
-
-
 allprobs = np.array(allprobs)
+sys.exit()
 col = []
 for i in range(len(allprobs[0])):
     if i == 0:
@@ -142,6 +94,7 @@ for i in range(len(allprobs[0])):
     else:
         col.append("P("+str(i)+"+)")
 allpdf = pd.DataFrame(allprobs,columns = col,index = alltax)
+print(allpdf)
 #seaborn.heatmap(allprobs,show=True)
 #plt = seaborn.heatmap(allprobs)
 with sns.axes_style("white"):

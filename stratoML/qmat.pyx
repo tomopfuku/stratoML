@@ -31,8 +31,8 @@ cdef class Qmat:
             self.update_mut_loss(i,m,l)
 
     def calc_p_mats(self, double t, int max_states = 6):
-        cdef double[:,:,:] mats = np.zeros((max_states-1,2**max_states,2**max_states),dtype=np.double)
-        cdef double[:,:] curp 
+        cdef double[:,:,:] mats = np.zeros((int(max_states)-1,int(2**max_states),int(2**max_states)),dtype=np.double)
+        cdef double[:,:] curp
         cdef int i,j,k
         for i in range(2,max_states+1):
             curp = mfc.calc_p_matrix(self.get_qmat(i),t)

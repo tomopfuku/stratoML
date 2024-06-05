@@ -1,4 +1,4 @@
-long_description = "Mandos provides tools for measuring the fit of phylogenies to the stratographic record and hypothesis-testing of direct ancestorship."
+long_description = "."
 
 from setuptools import setup, find_packages
 from setuptools.extension import Extension
@@ -13,17 +13,21 @@ extensions = [
     Extension(
         "stratoML.node",
         ["stratoML/node.pyx"],
+        include_dirs=[numpy.get_include()]
     ),
     Extension(
         "stratoML.mfc",
         ["stratoML/mfc.pyx"],
+        include_dirs=[numpy.get_include()]
         #extra_compile_args=['-fopenmp'],
         #extra_link_args=['-fopenmp'], 
    ),
    Extension(
         "stratoML.qmat",
         ["stratoML/qmat.pyx"],
-    ),
+
+        include_dirs=[numpy.get_include()]
+   ),
     #Extension(
     #    "stratoML.smaps",
     #    ["stratoML/smaps.pyx"],
@@ -31,10 +35,13 @@ extensions = [
     Extension(
         "stratoML.stratlike",
         ["stratoML/stratlike.pyx"],
+
+        include_dirs=[numpy.get_include()]
     ),
     Extension(
         "stratoML.bd",
         ["stratoML/bd.pyx"],
+        include_dirs=[numpy.get_include()]
     ),
 
 

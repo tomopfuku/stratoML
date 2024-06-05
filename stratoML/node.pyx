@@ -1,5 +1,3 @@
-#from libcpp cimport bool
-#from copy import deepcopy
 import numpy as np
 cimport numpy as np
 np.import_array()
@@ -8,8 +6,6 @@ import qmat
 cimport qmat
 import sys
 #import mfc
-#from cpython cimport array
-#import array
 
 
 cdef:
@@ -63,7 +59,7 @@ cdef class Node:
             if cur_trait != -9:
                 trait_probs[i][cur_trait] = 1.0
             elif cur_trait == -9: # plug in flat priors for missing traits
-                nstate = 2 ** ss[i]
+                nstate = 2 ** int(ss[i])
                 trait_freq = 1.0 / float(nstate)
                 for j in range(len(trait_probs[i])):
                     if j == nstate:

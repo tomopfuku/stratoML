@@ -37,7 +37,7 @@ def reroot_tree(oldroot,newroot,bifroot = True):
             break
 
     print(oldroot.get_newick_repr())
-    
+
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("usage:",sys.argv[0]," <tree> <stratigraphic ranges> <outgroup>")
@@ -47,4 +47,20 @@ if __name__ == "__main__":
     tree = tree_reader.read_tree_string(nwk)
     tree_utils.map_strat_to_tree(tree,sys.argv[2])
     nodes = [n for n in tree.iternodes()]
-    reroot_tree(tree,nodes[4])
+    #print([n.label for n in nodes])
+    #reroot_tree(tree,nodes[5])
+    count = 0
+    for n in tree.iternodes():
+        n.index = count
+        count+=1
+
+    tree_utils.map_strat_to_tree(tree,sys.argv[2])
+    print("Name,Code,Start,End,FAD,LAD,2.5HPD,97.5HPD,Parent")
+    for n in tree.inorder():
+        spls = [n.label,n.index,n.lower,n.upper,n.strat[0],n.strat[1],n.strat[0],n.strat[0]]
+        if n != tree:
+            spls.append(n.parent.index)
+        else:
+            spls.append("NA")
+        spls = [str(i) for i in spls]
+        print(",".join(spls))

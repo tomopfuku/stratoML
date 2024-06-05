@@ -14,7 +14,7 @@ def read_tree_table(flnm):
         code  = spls[1]
         lower = float(spls[2])
         upper = float(spls[3])
-        parent = spls[4]
+        parent = spls[-1]
         newnode.label = label
         if label != "":
             newnode.istip = True
@@ -37,7 +37,7 @@ def read_tree_table(flnm):
         curnode = codes[ncode][1]
         parnode = codes[par][1]
         parnode.add_child(curnode)
-        
+
     for n in tree.iternodes(0):
         if n == tree:
             continue
