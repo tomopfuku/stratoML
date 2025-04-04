@@ -141,33 +141,46 @@ cdef double budd_loglike_single_trait(node.Node n, int cur_k, int chari, double 
     cur_scen = bm.get_buddmat(cur_k)
     par_tr = n.disc_traits[chari]
     mis = check_mis(par_tr)
-    if mis:
-        for i in range(len(par_tr)):
-            par_tr[i] = 0.0
+    #if mis:
+    #    for i in range(len(par_tr)):
+    #        par_tr[i] = 0.0
     for chd_i in range(len(n.children)):
         p1 = n.children[chd_i].pmats[cur_k-2] #calc_p_matrix(cur_q,n.children[0].length)
         chd_tr = n.children[chd_i].disc_traits[chari]            
+        
         if mis == True: # parent is missing trait
             allstprob = 0.0
-            for i in range(len(cur_scen)):
-                if i == 0:
-                    continue
+            #if n.label == "Micraster_carentonensis" or n.label == "Micraster_laxoporus":
+            #    print(n.children[chd_i].label,list(chd_tr))
+            for i in range(1,len(cur_scen)):
                 inher = cur_scen[i]
                 nscen = count_nscenarios(inher)
                 weight = 1.0 / ( float(nscen) * float(len(cur_scen)-1) )
+
                 stateprob = p_over_desc(inher, chd_tr, p1, weight)
-                par_tr[i] += stateprob * desc_weight
+                #par_tr[i] += stateprob * desc_weight
                 #print(i, stateprob,weight)
                 allstprob += stateprob
         elif mis == False:
             for i in range(len(par_tr)): # i == character state in parent state vector
                 if par_tr[i] == 1.0:
                     inher = cur_scen[i]
+                    #if n.label == "Micraster_carentonensis" or n.label == "Micraster_laxoporus":
+                    #    print(n.children[chd_i].label,list(inher))
                     nscen = count_nscenarios(inher)
                     weight = 1.0 / float(nscen)
                     allstprob = p_over_desc(inher, chd_tr, p1, weight)
                     #traitlike += stateprob
+        #if n.children[chd_i].label == "Micraster_quebrada":
+            #print(n.children[chd_i].label,np.log(allstprob))
         traitll += np.log(allstprob)
+    #if n.label == "Micraster_carentonensis" or n.label == "Micraster_laxoporus":
+    #    print(n.label,traitll,mis)
+        
+    #   #if mis:
+    #       #print(par_tr)
+    #       #print(cur_k,list(n.disc_traits[chari]))
+    #        #print(sum(n.disc_traits[chari]))
     return traitll
 
 
@@ -184,8 +197,9 @@ cdef double budd_like(node.Node n, long[:] ss):
         if cur_k == 1:
             continue
         traitll = budd_loglike_single_trait(n, cur_k, chari, desc_weight)
+        #if n.label == "Micraster_quebrada":
+        #    print(n.label,traitll)
         nodell += traitll
-    #print(nodell)
     return nodell
 
 cdef int count_nscenarios(long[:] inher):
@@ -247,11 +261,17 @@ def mfc_treell(node.Node tree, long[:] ss, bint asc = True):
             print("error in calculating morph ll")
             sys.exit()
         treell += nodell
+        #print(n.label,nodell)
 
+    #print(treell)
     if asc == True:
         invarll = calc_invar_ll(tree)
+        #print(invarll)
+        #print(1.0-np.exp(invarll))
         treell = treell - np.log(1.0-np.exp(invarll))
-        
+    #print(treell)
+    #sys.exit()
+
     return treell
 
 def evaluate_m_l(double[:] params, node.Node tree, qmat.Qmat qmats,long[:] ss):

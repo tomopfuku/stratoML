@@ -1,0 +1,16 @@
+# run on https://sagecell.sagemath.org/
+
+
+r = var("r")
+p = var("p")
+q = var("q")
+T = var("T")
+
+f(p,q,r,T) = (exp(-r*T))*(1-exp(-p*T))*(exp(-q*T))
+f.full_simplify()
+fT = f.diff(T)
+fprime(p,q,r,T) = (q + r)*(e^(-T*p) - 1)*e^(-T*q - T*r) + p*e^(-T*p - T*q - T*r)
+#fprime.full_simplify()
+#mle = solve([fT==0],T)
+#mle_e(p,q,r) = log(p/(q + r) + q/(q + r) + r/(q + r))/p
+#mle_e.full_simplify()

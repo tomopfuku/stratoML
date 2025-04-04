@@ -267,7 +267,6 @@ def random_spr(tree):
 
 def calc_tree_ll(tree,ss,tree_model="bds"):
     stratlike.calibrate_brlens_strat(tree,0.2)
-
     qmats = qmat.Qmat(0.01,0.05)
     #for n in tree.iternodes():
     #    n.update_pmat(qmats,max(ss))
@@ -281,23 +280,30 @@ def calc_tree_ll(tree,ss,tree_model="bds"):
         stratlike.bds_dates(p,q,r,tree)
         bdsll = stratlike.bds_loglike(p,q,r,tree)
         res_tr = minimize(mfc.evaluate_m_l,x0=np.array([0.1,0.0002]),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,0.2),(0.00001,0.2)))
-        tree_ll = bdsll+-res_tr.fun 
+        traitll = -res_tr.fun
+        tree_ll = traitll + bdsll
         nparam = 3.0 + 2.0
-    else:
+    elif tree_model == "hr97":
         res_st = minimize(stratlike.poisson_neg_ll,x0=np.array([1.0]),args=(tree),method="Nelder-Mead")
-        bdsll = res_st.fun
+        bdsll = -res_st.fun
         res_tr = minimize(mfc.evaluate_m_l,x0=np.array([0.1,0.0002]),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,0.2),(0.00001,0.2)))
-        tree_ll = -res_tr.fun + res_st.fun
+        print(res_tr.x)
+        traitll = -res_tr.fun
+        tree_ll = traitll + bdsll
         nparam = 1.0 + 2.0
         #print(res_st.fun,bdsll,res_tr.fun)
         #print(stratlike.poisson_loglike(1.0,tree))
         #print(res_st)
         #sys.exit()
+    else:
+        print("stratigraphic range model not recognized. please type either \"bds\" or \"hr97\"")
+        sys.exit()
+
     nparam += float(len([n for n in tree.iternodes()]) - 1)
    
     aic = (2. * nparam) - (2. * tree_ll) 
 
-    return aic,-res_tr.fun,bdsll
+    return aic,traitll,bdsll
 
 
 # this function tries to insert hypothetical ancestors into all possible AD pairs
@@ -412,10 +418,17 @@ def tree_search(tree, ss):
     print(bestll)
     print(besttree)
 
+def single_tree_aic(tree,ss,tree_mod="bds",anc_start=False):
+    stratlike.calibrate_brlens_strat(tree,0.3)
+    bestaic,traitll,bdsll = calc_tree_ll(tree,ss,tree_mod)
+    #print("STARTING AIC:",bestaic)
+    #print("traitll stratll treell")
+    #print(traitll,bdsll,traitll+bdsll)
+    return bestaic
+
 def tree_search2(tree,ss,tree_mod="bds",anc_start=False):
     stratlike.calibrate_brlens_strat(tree,0.3)
     bestaic,_,_ = calc_tree_ll(tree,ss,tree_mod)
-    print("STARTING AIC:",bestaic)
     besttree = tree.get_newick_repr()
     tipdic = bp.get_tip_indices(tree)
     curbp = bp.decompose_tree(tree,tipdic)
@@ -423,7 +436,7 @@ def tree_search2(tree,ss,tree_mod="bds",anc_start=False):
     nums = [0,1,2,3] # 0 = spr; 1 = find_new_ancestor; 2 = search_ancestors; 3 = search_bifurcating
     #weights = [0.4,0.4,0.1,0.1]
     #weights = [0.45,0.45,0.1,0.0]
-    weights = [0.5,0.5,0.0,0.0]
+    weights = [0.0,1.0,0.0,0.0]
     #weights = [0.,1.,0.,0.]
     outfl = open("stratoML.outtrees","w")
     outfl.write(str(bestaic)+" "+besttree+"\n")
@@ -434,7 +447,7 @@ def tree_search2(tree,ss,tree_mod="bds",anc_start=False):
         changed = False
         curaic = bestaic
     for i in range(200):
-        if i-lastchange >=50:
+        if i-lastchange >=100:
             break
         move = random.choices(population=nums,weights=weights,k=1)[0] 
         if move == 0:

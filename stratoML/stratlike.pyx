@@ -11,7 +11,7 @@ cpdef double poisson_loglike(double lam, node.Node tree):
     cdef node.Node n
 
     if lam < 0.000001:
-        return 100000000000
+        return -100000000000.
 
     for n in tree.iternodes():
         if n == tree and n.istip == False:
@@ -48,7 +48,7 @@ def single_range_ll(double gap, double p, double q, double r, double obs_range, 
     cdef double r_like,p_like,q_like, duration, ll
     duration = obs_range + gap
     if gap <= 0.0 or gap > 20.0:
-        return 100000000.0
+        return -1000000000.0
 
     r_like = np.log(bd.calc_prob_range(r,duration,obs_range))
     p_like = np.log(bd.prob_n_obs_desc(p,q,r,nch,duration))
@@ -270,6 +270,9 @@ def bds_dates(double p, double q, double r, node.Node tree):
                     n.lower = ch.lower + 0.1
                 if ch.lower < n.upper:
                     n.upper = ch.lower
+                templen = n.lower - n.upper
+                if templen != n.length:
+                    n.length = templen
 
 def bds_extinct_branch_ll(double p,double q,double r,node.Node n):
     cdef f,l,obs_range,tf,tl,duration,p_like,q_like,r_like,brlik
@@ -311,7 +314,8 @@ def bds_loglike(double p, double q, double r, node.Node tree):
             if n.upper > 0.0:
                 brlik = bds_extinct_branch_ll(p,q,r,n)
             elif n.upper == 0.0:
-                print("extant species not yet implemented for bds")
+                #print("WARNING: extant species not yet implemented for bds")
+                brlik = bds_extinct_branch_ll(p,q,r,n)
         else:
             brlik = bds_hyp_anc_ll(p,q,r,n)
         treelik += brlik

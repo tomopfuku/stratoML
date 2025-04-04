@@ -45,6 +45,7 @@ def decompose_tree(tree,tipdic):
             continue
 
         bs = make_bipart(tree,n,tipdic)
+        #print(n.label,bs)
         bp.append(bs)
     
     return frozenset(bp)

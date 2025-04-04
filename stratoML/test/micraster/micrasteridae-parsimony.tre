@@ -1,0 +1,53 @@
+#NEXUS 
+
+Begin trees;  [Treefile saved Fri Sep 01 12:34:11 2023]
+[!
+>Data file = micrasteridae-character_matrix.nex
+>Branch-and-bound search settings:
+>  Optimality criterion = parsimony (Goloboff fit with k=8)
+>    Character-status summary:
+>      Of 35 total characters:
+>        All characters are of type 'unord'
+>        All characters have equal weight
+>        6 characters are parsimony-uninformative
+>        Number of parsimony-informative characters = 29
+>    Gaps are treated as "missing"
+>    Multistate taxa interpreted as polymorphism
+>  Initial upper bound: unknown (compute heuristically)
+>  Addition sequence: furthest
+>  Initial 'Maxtrees' setting = 1000
+>  Branches collapsed (creating polytomies) if maximum branch length is zero
+>  'MulTrees' option in effect
+>  No topological constraints in effect
+>  Trees are unrooted
+>
+>Branch-and-bound search completed:
+>  Score of best tree found = -21.83090
+>  Number of trees retained = 3
+>  Time used = 2.67 sec (CPU time = 1.94 sec)
+]
+	Translate
+		1 Micraster_coranguinum,
+		2 Micraster_cortesudinarium,
+		3 Micraster_leskei,
+		4 Micraster_corbovis,
+		5 Micraster_michelini,
+		6 Micraster_laxoporus,
+		7 Micraster_carentonensis,
+		8 Micraster_turonensis,
+		9 Micraster_rogalae,
+		10 Micraster_schroederi,
+		11 Micraster_quebrada,
+		12 Micraster_brevis,
+		13 Micraster_uddeni,
+		14 Gibbaster_gibbus,
+		15 Gibbaster_senonensus,
+		16 Ovulaster_zignoi,
+		17 Ovulaster_auberti,
+		18 Ovulaster_reticulatus,
+		19 Turanglaster_nazkii
+		;
+tree 'PAUP_1' = [&R] ((((((((1,(2,(10,(14,15)))),9),8),13),12),(3,4)),((5,6,7),11)),(16,((17,18),19)));
+tree 'PAUP_2' = [&R] ((((((((1,((2,10),(14,15))),9),8),13),12),(3,4)),((5,6,7),11)),(16,((17,18),19)));
+tree 'PAUP_3' = [&R] ((((((((1,((2,(14,15)),10)),9),8),13),12),(3,4)),((5,6,7),11)),(16,((17,18),19)));
+End;

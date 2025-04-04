@@ -71,16 +71,13 @@ cpdef double prob_n_obs_desc(double p,double q,double r,int n_obs,double duratio
     p_obs = p_pres ** float(n_obs)
     p_n_obs = prob_n_desc(p,float(n_obs),duration) #(math.exp(-p*duration)*((p*duration)**n_obs)) / math.factorial(n_obs)
     marg_p = p_n_obs * p_obs
-    for n in range(n_obs+1,n_obs+10):
+    for n in range(n_obs+1,n_obs+20):
         cur_p = prob_n_desc(p,float(n),duration) 
         #n_unobs = n - n_obs
         marg_p += (cur_p * p_obs * p_unobs)
         p_unobs *= p_unobs
     return marg_p
 
-#def BDS_range_prob(p,q,r,time):
-
-    
 def expect_gap(r):
     expect = 1.0 / r
     return expect

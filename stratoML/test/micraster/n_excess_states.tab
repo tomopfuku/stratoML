@@ -1,19 +1,18 @@
-taxon nstates par_nstates
-Micraster_coranguinum 7 18
-Micraster_cortesudinarium 18 13
-Micraster_leskei 13 3
-Micraster_michelini 3 NA
-Micraster_laxoporus 3 3
-Micraster_carentonensis 3 3
-Micraster_turonensis 9 7
-Micraster_rogalae 3 9
-Micraster_schroederi 17 7
-Micraster_quebrada 5 3
-Micraster_brevis 7 18
-Micraster_uddeni 0 7
-Gibbaster_gibbus 5 7
-Gibbaster_senonensus 5 5
-Ovulaster_zignoi 0 0
-Ovulaster_auberti 0 0
-Ovulaster_reticulatus 0 0
-Turanglaster_nazkii 0 NA
+taxon nstates par_nstates n_desc
+Micraster_coranguinum 7 18 0
+Micraster_cortesudinarium 18 13 4
+Micraster_leskei 13 3 1
+Micraster_michelini 3 NA 2
+Micraster_laxoporus 3 3 1
+Micraster_carentonensis 3 3 1
+Micraster_turonensis 9 7 1
+Micraster_rogalae 3 9 0
+Micraster_schroederi 17 7 0
+Micraster_quebrada 5 3 0
+Micraster_brevis 7 18 1
+Gibbaster_gibbus 5 7 1
+Gibbaster_senonensus 5 5 0
+Ovulaster_zignoi 0 0 0
+Ovulaster_auberti 0 0 1
+Ovulaster_reticulatus 0 0 1
+Turanglaster_nazkii 0 NA 1

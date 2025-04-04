@@ -61,6 +61,8 @@ cdef class Qmat:
                 continue
             for j in range(nrow):
                 if i != j:
+                    #if j == 0:  ## remove null state
+                    #    continue
                     ndiff = 0
                     for ii in range(nstates):
                         if smap[i][ii] != smap[j][ii]:
