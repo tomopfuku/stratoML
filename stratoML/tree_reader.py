@@ -1,5 +1,6 @@
 import sys
 import node
+import tree_utils
 import numpy as np
 
 def read_tree_table(flnm):
@@ -56,6 +57,7 @@ def read_tree_table(flnm):
 
         n.length = n.lower - n.upper
         #print(n.label,n.lower,n.upper,n.strat[0],n.strat[1])
+        tree_utils.sort_children_by_age(tree)
     return tree
 
 def init_heights_strat(tree,fixed_root=False):
@@ -179,6 +181,7 @@ def read_tree_string(instr):
         for n in root.children[ch_i].iternodes():
             n.subtree = ch_i + 1
     root.subtree = 0
+    #tree_utils.sort_children_by_age(root)
     return root
 
 if __name__ == "__main__":

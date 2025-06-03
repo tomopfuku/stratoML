@@ -55,7 +55,14 @@ extensions = [
 
 setup(name='stratoML',
       packages=find_packages(),#exclude = ['scripts','tests']),#['mandos'],
-      ext_modules=cythonize(extensions),
+      ext_modules=cythonize(extensions,
+            annotate=True,
+            compiler_directives={
+            "language_level": 3,
+            "warn.undeclared": True,
+            "warn.maybe_uninitialized": True,
+        }),
+
       #entry_points = {'console_scripts':['search-mandos-trees = mandos.command_line:main'],},
       #package_data = `
       #include_package_data= True,

@@ -202,7 +202,7 @@ def hyp_anc_mle_sim(double p, double q, double r):
     return bestdur
 
 def calibrate_brlens_strat(tree,gap=0.2):
-    cdef double f,l
+    cdef double f,l, oldest, youngest
     cdef node.Node n
 
     for n in tree.iternodes(order=1):
@@ -213,7 +213,7 @@ def calibrate_brlens_strat(tree,gap=0.2):
             if n.upper < 0.0:
                 n.upper = 0.0
             n.lower = f + (gap / 2.0)
-        else:
+        elif n.istip == False:
             #if n == tree:
             #    continue
             oldest = 0.0
@@ -226,13 +226,34 @@ def calibrate_brlens_strat(tree,gap=0.2):
             n.lower = n.upper+gap
     for n in tree.iternodes(order = 1):
         if n.istip:
+            youngest = 10000000.0
+            oldest = 0.0
             for ch in n.children:
-                if ch.lower >= n.lower:
-                    n.lower = ch.lower + 0.1
-                if ch.lower < n.upper:
-                    n.upper = ch.lower
+                if ch.lower < youngest:
+                    youngest = ch.lower 
+                if ch.lower > oldest:
+                    oldest = ch.lower 
+           
+            if oldest >= n.lower - 0.09:
+                n.lower = oldest + 0.1
+            if youngest <= n.upper + 0.09:
+                n.upper = youngest - 0.1
+        elif n.istip == False:
+            oldest = 0.0
+            for ch in n.children:
+                if ch.lower > oldest:
+                    oldest = ch.lower 
+            for ch in n.children:
+                ch.lower = oldest
+            n.upper = oldest
+            n.lower = n.upper+gap
+        #print(n.label,n.lower,n.upper,[(ch.lower,ch.istip) for ch in n.children])
+        #for ch in n.children:
+        #        print(n.label,n.lower,n.upper,list(n.strat),ch.label,ch.lower,list(ch.strat))
+   
+        #n.midpoint = (n.lower+n.upper) / 2.0
         n.length = n.lower-n.upper
- 
+    #sys.exit()
 
 def bds_dates(double p, double q, double r, node.Node tree):
     cdef double gap, mllen, f, l, hypanc_len, oldest , obs_range
@@ -275,7 +296,7 @@ def bds_dates(double p, double q, double r, node.Node tree):
                     n.length = templen
 
 def bds_extinct_branch_ll(double p,double q,double r,node.Node n):
-    cdef f,l,obs_range,tf,tl,duration,p_like,q_like,r_like,brlik
+    cdef double f,l,obs_range,tf,tl,duration,p_like,q_like,r_like,brlik
     
     tf = n.lower
     tl = n.upper
@@ -291,7 +312,7 @@ def bds_extinct_branch_ll(double p,double q,double r,node.Node n):
     return brlik
 
 def bds_hyp_anc_ll(double p,double q,double r,node.Node n):
-    cdef tf,tl,duration,brlik
+    cdef double tf,tl,duration,brlik
 
     tf = n.lower
     tl = n.upper

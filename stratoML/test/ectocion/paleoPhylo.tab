@@ -1,0 +1,10 @@
+Name,Code,Start,End,Parent
+Tetraclaenodon,1,60.2,59.3,0
+,0,60.5,60.4,NA
+E_cedrus,3,58.3,57.2,2
+E_collinus,2,60.2,57.8,0
+E_major,5,56.8,55.4,4
+E_mediotuber,4,57.8,56.8,2
+E_parvus,7,55.8,53.4,6
+E_osbornianus,6,56.8,52.4,4
+E_superstes,8,50.3,49.3,6

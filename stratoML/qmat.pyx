@@ -30,7 +30,12 @@ cdef class Qmat:
             #qmat = self.get_qmat(i)
             self.update_mut_loss(i,m,l)
 
-    def calc_p_mats(self, double t, int max_states = 6):
+    def calc_single_p_mat(self, double t, int ss):
+        cdef double[:,:] p
+        p = mfc.calc_p_matrix(self.get_qmat(ss),t)
+        return p
+
+    def calc_p_mats(self, double t, int max_states = 7):
         cdef double[:,:,:] mats = np.zeros((int(max_states)-1,int(2**max_states),int(2**max_states)),dtype=np.double)
         cdef double[:,:] curp
         cdef int i,j,k

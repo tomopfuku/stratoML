@@ -18,17 +18,20 @@ cdef:
 cdef class Node:
     #cdef public dict data
     cdef public bint istip
-    cdef public double height,length,upper,lower
+    cdef public double height,length,upper,lower,midpoint
     cdef public unsigned int num_occurrences
     cdef public str label
     cdef public object parent
     cdef public list children
     #cdef public long[:] disc_starts
     cdef public double[:,:] disc_traits
+    cdef public double[:,:,:] budd_marginals  # for simulation
+    cdef public double[:,:,:] timeslice_lv
+    cdef public double[:,:] scaling_factors # first dim is children, second is traits
     cdef public double[:] strat
     cdef public double[:,:,:] pmats
     #cdef public double[:] cont_traits
-    cdef public int index, subtree
+    cdef public int index, subtree, index_from_parent, parent_lv_index, midpoint_lv_index
 
     def __init__(self):
         #self.data = {}
@@ -40,15 +43,37 @@ cdef class Node:
         #self.height = 0.0
         self.upper = 0.0
         self.lower = 0.0
+        self.midpoint = 0.0
         #self.num_occurrences = 0
         self.strat = np.array([0.0,0.0],dtype=np.double)
         self.disc_traits = np.array([[]],dtype=np.double)
+        self.scaling_factors = np.array([[]],dtype=np.double)
+        self.budd_marginals = np.array([[[]]],dtype=np.double) # in same order as self.children, these give marginal probs of being in each state at each budding point along branch
+        self.timeslice_lv = np.array([[[]]],dtype=np.double) # ordered from tip toward root, with budding descendants and midpoint along the way 
         #self.cont_traits = np.array([],dtype=np.double)
-        self.pmats = np.array([[[]]],dtype=np.double)
+        self.pmats = np.array([[[]]],dtype=np.double) # these are Pmats from either the start or midpoint of the branch
+        #self.budd_pmats = np.array([[[]]],dtype=np.double) # these are Pmats from  
         self.index = 0
+        self.index_from_parent = 0
+        self.parent_lv_index = 0
+        self.midpoint_lv_index = 0
 
-    def update_pmat(self, qmat.Qmat ratemats, int maxstates):
-        self.pmats = ratemats.calc_p_mats(self.length, maxstates)
+    def update_pmat(self, qmat.Qmat ratemats, int maxstates, str mode="end"):
+        cdef double t
+        cdef unsigned int i
+        #for i in range(len(self.children)):
+
+        if mode != "end" and mode != "mid":
+            print("transition probability matrices must be calculated assuming traits are observed at either the endpoint or midpoint.")
+            print("valid options are \"end\" and \"mid\".")
+            sys.exit()
+
+        if mode == "end" or self.istip == False:
+            t = self.length
+        elif mode == "mid":
+            t = self.length / 2.0
+        self.pmats = ratemats.calc_p_mats(t, maxstates)
+
 
     def add_disc_traits(self, list traitls, long[:] ss):
         cdef double trait_freq
@@ -60,12 +85,13 @@ cdef class Node:
                 trait_probs[i][cur_trait] = 1.0
             elif cur_trait == -9: # plug in flat priors for missing traits
                 nstate = 2 ** int(ss[i])
-                trait_freq = 1.0 / float(nstate)
+                trait_freq = 1.0 #/ float(nstate)
                 for j in range(len(trait_probs[i])):
                     if j == nstate:
                         break
                     trait_probs[i][j] = trait_freq
         self.disc_traits = trait_probs
+
 
     def get_newick_repr(self, bint showbl=False):
         cdef unsigned int i

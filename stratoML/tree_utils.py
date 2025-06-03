@@ -18,17 +18,43 @@ def map_tree_disc_traits(tree,traits,ss):
             try:
                 curtr = traits[n.label]
                 n.add_disc_traits(curtr,ss)
-                #for i in n.disc_traits:
-                #    print(list(i))
             except:
                 print(n.label, "is present in the tree, but has no traits in the fasta")
                 sys.exit()
-            #print(curtr)
-            #print(list(n.disc_starts))
-            #print(list(n.disc_states))
         else:
             n.disc_traits = np.zeros((ntrait,128))
+    init_budd_marginals(tree,len(list(traits.values())[0]),ss)
 
+def init_budd_marginals(tree, ntrait, ss):
+    one_marg = np.zeros((ntrait,128))
+    one_sf   = np.zeros(ntrait)
+    for n in tree.iternodes():
+        all_lv = []
+        all_sf = []
+        for i in range(len(n.children)+1):
+            all_lv.append(one_marg)
+            all_sf.append(one_sf)
+            if n.istip == False:
+                break
+        n.timeslice_lv = np.array(all_lv)
+        n.scaling_factors = np.array(all_sf)
+
+        if n.istip:
+            n_ts = len(n.children)
+            if n_ts < 1:
+                #n.timeslice_lv[0] = n.disc_traits  # set the likelihood vectors for tips to be the trait states
+                continue
+            all_marg = []
+            for i in range(n_ts):
+                all_marg.append(one_marg)
+            
+            n.budd_marginals = np.array(all_marg)
+
+            #print("HERE",len(n.budd_marginals),n_ts,len(n.budd_marginals[0]))
+            #for i in list(n.budd_marginals):
+            #    for j in list(i):
+            #        print(list(j))
+    #fix_obs_lv(tree)
 #def get_all_reattachment_nodes(tree,pluck_node):
 #    for n in tree.iternodes(order=0):
 
@@ -124,6 +150,51 @@ def pick_spr_prune_regraft_nodes(tree):
         pick_spr_prune_regraft_nodes(tree)
 """
 
+def find_best_spr2(tree,qmats,ss,startaic = None,tree_mod="bds"):
+    if startaic == None:
+        startaic,_,_ = calc_tree_ll2(tree,qmats,ss,tree_mod)
+    bestaic = startaic
+    for i in range(5):
+        nodes = [n for n in tree.iternodes() if n != tree and n.parent != tree]
+        pluck_node = random.choice(nodes)
+        prev_par, sib = prune_subtree(pluck_node)
+        nodes = [n for n in tree.iternodes() if n != tree and n != prev_par and n != sib and n.subtree == pluck_node.subtree]
+        if len(nodes) > 0:
+            break
+        if sib:
+            regraft_bif_subtree(pluck_node,sib)
+        else:
+            regraft_AD_subtree(pluck_node,prev_par)
+        if i == 4:
+            print("couldn't find suitable node to prune in find_best_spr()")
+            return None,None
+
+    aics = []
+
+    for regraft_node in nodes:
+        regraft_bif_subtree(pluck_node,regraft_node)
+        curaic,_,_ = calc_tree_ll2(tree,qmats,ss,tree_mod)
+        prune_subtree(pluck_node)
+        aics.append((curaic,regraft_node))
+    
+    aics = sorted(aics, key = lambda x: x[0])
+    bestrearr = aics[0]
+    changed = False
+    if bestrearr[0] < startaic:
+        #prune_subtree(pluck_node)
+        regraft_bif_subtree(pluck_node,bestrearr[1])
+        bestaic = bestrearr[0]
+        changed = True
+    else:
+        #reattach_to_orig_parent(pluck_node,prev_par,sib)
+        if sib:
+            regraft_bif_subtree(pluck_node,sib)
+        else:
+            regraft_AD_subtree(pluck_node,prev_par)
+        #sys.exit()
+    return changed, bestaic
+
+
 
 def find_best_spr(tree,ss,startaic = None,tree_mod="bds"):
     if startaic == None:
@@ -205,6 +276,66 @@ def get_possible_ancestors(pluck_node,tree):
     nodes = [nn for nn in tree.iternodes() if nn != pluck_node and nn != pluck_node.parent and nn.istip and nn.strat[0] >= pluck_node.strat[0] and nn.subtree == pluck_node.subtree] #and nn != pluck_node.get_sib()] 
     return nodes
 
+def find_new_ancestor2(tree,qmats,ss,startaic=None,tree_mod="bds"):
+    print("BEFORE:",tree.get_newick_repr())
+    descnodes = find_all_possible_descendant_nodes(tree)
+    if startaic == None:
+        startaic,_,_ = calc_tree_ll2(tree, qmats, ss,tree_mod)
+    bestaic = startaic
+    pluck_node = choose_descnode(descnodes)    # random.choice(descnodes)
+    prev_par, sib = prune_subtree(pluck_node)
+    if sib:
+        spare_hyp_anc = pluck_node.parent
+    nodes = get_possible_ancestors(pluck_node,tree) #[nn for nn in tree.iternodes() if nn != pluck_node and nn != pluck_node.parent and nn != pluck_node.get_sib() and nn.istip and nn.strat[0] >= pluck_node.strat[0] and nn.subtree == pluck_node.subtree]
+    if len(nodes) == 0:
+        #print("FOUND NO ANCESTORS",pluck_node.label,pluck_node.parent,pluck_node.parent.label,tree)
+        print("FOUND NO ANCESTORS")
+        if sib:
+            pluck_node.parent = spare_hyp_anc
+            regraft_bif_subtree(pluck_node,sib)
+
+        else:
+            regraft_AD_subtree(pluck_node,prev_par)
+        sort_children_by_age(tree)
+        init_budd_marginals(tree, len(ss), ss)
+        return False,bestaic
+
+    aics = []
+    #allseen = []
+    for regraft_node in nodes:
+        regraft_AD_subtree(pluck_node,regraft_node)
+        sort_children_by_age(tree)
+        init_budd_marginals(tree, len(ss), ss)
+        fix_obs_lv(tree) 
+        print("AFTER:",tree.get_newick_repr())
+        curaic,morphll,stratll = calc_tree_ll2(tree,qmats,ss,tree_mod)
+        print(curaic,morphll,stratll)
+        #allseen.append((curaic,tree.get_newick_repr()))
+        prune_subtree(pluck_node)
+        aics.append((curaic,regraft_node))
+    aics = sorted(aics, key = lambda x: x[0])
+    bestrearr = aics[0]
+    changed = False
+    if bestrearr[0] < bestaic:
+        regraft_AD_subtree(pluck_node,bestrearr[1])
+        sort_children_by_age(tree)
+        init_budd_marginals(tree, len(ss), ss)
+        bestaic = bestrearr[0]
+        changed = True
+
+    else:
+        if sib:
+            pluck_node.parent = spare_hyp_anc
+            regraft_bif_subtree(pluck_node,sib)
+        else:
+            regraft_AD_subtree(pluck_node,prev_par)
+        sort_children_by_age(tree)
+        init_budd_marginals(tree, len(ss), ss)
+        bestaic = bestrearr[0]
+    return changed,bestaic
+
+
+
 def find_new_ancestor(tree,ss,startaic=None,tree_mod="bds"):
     descnodes = find_all_possible_descendant_nodes(tree)
     if startaic == None:
@@ -247,7 +378,7 @@ def find_new_ancestor(tree,ss,startaic=None,tree_mod="bds"):
             regraft_bif_subtree(pluck_node,sib)
         else:
             regraft_AD_subtree(pluck_node,prev_par)
-    return changed,bestaic
+    return changed, bestaic
 
 
 def random_spr(tree):
@@ -264,6 +395,46 @@ def random_spr(tree):
     regraft_node = random.choice(nodes)
     regraft_subtree(pluck_node,regraft_node)
     return pluck_node,prev_par,sib
+
+def calc_tree_ll2(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.0002]):
+    #stratlike.calibrate_brlens_strat(tree,0.2)
+    #qmats = qmat.Qmat(0.01,0.05)
+    sort_children_by_age(tree)
+    init_budd_marginals(tree, len(ss), ss)
+    fix_obs_lv(tree)
+    if tree_model == "bds":
+        pqr_start = np.array([0.5,0.5,1.0])
+        res = basinhopping(stratlike.bds_neg_ll,x0=pqr_start,niter=5,minimizer_kwargs={"method":"L-BFGS-B","args":(tree),"bounds":((0.00001,10),(0.00001,10),(0.00001,20))})
+        p = res.x[0]
+        q = res.x[1]
+        r = res.x[2]
+        stratlike.bds_dates(p,q,r,tree)
+        bdsll = stratlike.bds_loglike(p,q,r,tree)
+        res_tr = minimize(mfc.evaluate_m_l2,x0=np.array(starting_mfc_rates),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,0.2),(0.00001,0.2)))
+        traitll = -res_tr.fun
+        tree_ll = traitll + bdsll
+        nparam = 3.0 + 2.0
+    elif tree_model == "hr97":
+        res_st = minimize(stratlike.poisson_neg_ll,x0=np.array([1.0]),args=(tree),method="Nelder-Mead")
+        #for n in tree.iternodes():
+        #    print(n.label,n.lower,n.upper)
+        bdsll = -res_st.fun
+        res_tr = minimize(mfc.evaluate_m_l2,x0=np.array(starting_mfc_rates),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,0.2),(0.00001,0.2)))
+
+        #print(res_tr.x)
+        traitll = -res_tr.fun
+        tree_ll = traitll + bdsll
+        nparam = 1.0 + 2.0
+    else:
+        print("stratigraphic range model not recognized. please type either \"bds\" or \"hr97\"")
+        sys.exit()
+
+    nparam += float(len([n for n in tree.iternodes()]) - 1)
+    aic = (2. * nparam) - (2. * tree_ll) 
+
+    return aic,traitll,bdsll
+
+
 
 def calc_tree_ll(tree,ss,tree_model="bds"):
     stratlike.calibrate_brlens_strat(tree,0.2)
@@ -349,6 +520,116 @@ def search_bifurcating(tree,ss,startaic = None,tree_mod="bds"):
                 break
     return changed, bestaic
 
+def tree_search3(tree,ss,qmats,tree_mod="bds",anc_start=False):
+    bestaic,_,_ = calc_tree_ll2(tree,qmats,ss,tree_mod)
+    besttree = tree.get_newick_repr()
+    tipdic = bp.get_tip_indices(tree)
+    curbp = bp.decompose_tree(tree,tipdic)
+    seen = set([curbp])
+    nums = [0,1,2,3] # 0 = spr; 1 = find_new_ancestor; 2 = search_ancestors; 3 = search_bifurcating
+    #weights = [0.4,0.4,0.1,0.1]
+    #weights = [0.45,0.45,0.1,0.0]
+    weights = [0.0,1.0,0.0,0.0]
+    #weights = [0.,1.,0.,0.]
+    outfl = open("stratoML.outtrees","w")
+    outfl.write(str(bestaic)+" "+besttree+"\n")
+    lastchange = 0
+    if anc_start == True:
+        changed, curaic = search_ancestors2(tree,qmats,ss,bestaic,tree_mod)
+        print(curaic)
+        print(tree.get_newick_repr())
+        sys.exit()
+    else:
+        changed = False
+        curaic = bestaic
+    for i in range(200):
+        if i-lastchange >=100:
+            break
+        move = random.choices(population=nums,weights=weights,k=1)[0] 
+        if move == 0:
+            changed, curaic = find_best_spr2(tree,ss,bestaic,tree_mod)
+        elif move == 1:
+            changed, curaic = find_new_ancestor2(tree,qmats,ss,bestaic,tree_mod)
+        elif move == 2: 
+            changed, curaic = search_ancestors(tree,ss,bestaic,tree_mod)
+        elif move == 3:
+            changed, curaic = search_bifurcating(tree,ss,bestaic,tree_mod)
+        else:
+            print("need to specify a valid move")
+            sys.exit()
+        print("ITERATION",i,changed,curaic,move)
+        if curaic < bestaic:
+            bestaic = curaic
+            besttree = tree.get_newick_repr()
+            curbp = bp.decompose_tree(tree,tipdic)
+            lastchange = i
+            print("CURRENT:",bestaic,tree.get_newick_repr())
+            if curbp not in seen:
+                seen.add(curbp)
+                outfl.write(str(bestaic)+" "+besttree+"\n")
+    print("BEST",bestaic,besttree)
+    outfl.close()
+    return besttree, bestaic
+
+def search_ancestors2(tree,qmats,ss,startaic = None,tree_mod="bds"):
+    if startaic == None:
+        sort_children_by_age(tree)
+        init_budd_marginals(tree, len(ss), ss)
+        fix_obs_lv(tree)
+        startaic,_,_ = calc_tree_ll2(tree,qmats,ss,tree_mod)
+
+    testnodes = []
+    for n in tree.iternodes():
+        if n == tree:
+            continue
+        if n.istip == False:
+            n_real_ch = 0
+            real = None
+            for chi in range(len(n.children)):
+                if n.children[chi].istip:
+                    n_real_ch += 1
+                    real = chi
+            if n_real_ch == 0:
+                continue
+            #elif n_real_ch == 1 and n.children[real].strat[0] < n.children[real^1].lower:
+            elif n_real_ch == 1 and n.children[real].strat[0] < max([nn.strat[0] for nn in n.children[real^1].iternodes()]):
+                #print("HERE")
+                continue
+            testnodes.append(n)
+    #print(testnodes)
+
+    aics = []
+    changed = False
+    bestaic = startaic
+    if len(testnodes) > 0:
+        for n in testnodes:
+            desc = make_ancestor(n)
+            sort_children_by_age(tree)
+            init_budd_marginals(tree, len(ss), ss)
+            curaic,morph,strat = calc_tree_ll2(tree,qmats,ss,tree_mod)
+            print(curaic,morph,strat)
+            aics.append((curaic,n))
+            make_bifurcating(desc,n)
+
+        aics = sorted(aics, key = lambda x: x[0])
+
+        for tup in aics:
+            curanc = tup[1]
+            make_ancestor(curanc)
+            sort_children_by_age(tree)
+            init_budd_marginals(tree, len(ss), ss)
+            curaic,morph,strat = calc_tree_ll2(tree,qmats,ss,tree_mod)
+            if curaic < bestaic:
+                bestaic = curaic
+                changed = True
+            else:
+                make_bifurcating(desc,curanc)
+                sort_children_by_age(tree)
+                init_budd_marginals(tree, len(ss), ss)
+                break
+        #print(bestaic)
+        #print(tree.get_newick_repr())
+    return changed, bestaic
 
 
 def search_ancestors(tree,ss,startaic = None,tree_mod="bds"):
@@ -418,12 +699,9 @@ def tree_search(tree, ss):
     print(bestll)
     print(besttree)
 
-def single_tree_aic(tree,ss,tree_mod="bds",anc_start=False):
+def single_tree_aic(tree,ss,tree_mod="bds",morph_mod="mfc2",anc_start=False):
     stratlike.calibrate_brlens_strat(tree,0.3)
     bestaic,traitll,bdsll = calc_tree_ll(tree,ss,tree_mod)
-    #print("STARTING AIC:",bestaic)
-    #print("traitll stratll treell")
-    #print(traitll,bdsll,traitll+bdsll)
     return bestaic
 
 def tree_search2(tree,ss,tree_mod="bds",anc_start=False):
@@ -557,12 +835,99 @@ def random_nni(tree):
     #    if le 
     # 
 
+def fix_obs_lv(tree, do_tips = True):
+    for n in tree.iternodes():
+        if len(n.children) == 0 and do_tips == False or n.istip == False:
+            continue
+        #print(n.label,n.midpoint_lv_index, len(n.children))
+        n.timeslice_lv[n.midpoint_lv_index] = n.disc_traits
+
+def sort_children_by_age(tree):
+    for n in tree.iternodes(1):
+        n.midpoint = (n.lower+n.upper) / 2.0
+        if n.istip and len(n.children) > 0:
+            n.children.sort(key=lambda chd: chd.lower, reverse=True)
+
+        last = n.lower        
+        m = 0
+        past_mid = False
+        simul = False
+        for i, ch in enumerate(n.children):
+            if ch.lower == last:
+                #print(ch.label,ch.lower,n.children[i-1].label,n.children[i-1].lower)
+                simul = True
+            ch.index_from_parent = i
+            if round(ch.lower,4) == round(n.midpoint,4):
+                diff = round(last - ch.lower,3)
+                n.midpoint += round((diff / 6.),3) # if midpoint is the same as a budding point, move the midpoint slightly back toward the last budding point or the start of the lineage
+                #simul = True
+                #m = ch.
+            if ch.lower > n.midpoint:
+                ch.parent_lv_index = len(n.children) - i
+            elif ch.lower < n.midpoint:
+                if past_mid == False:
+                    m = len(n.children) - i
+                    past_mid = True
+                ch.parent_lv_index = len(n.children) - i - 1
+            #print(n.label,ch.label, ch.parent_lv_index, ch.lower)
+            last = ch.lower 
+            
+        n.midpoint_lv_index = m
+        if simul == True and n.istip:
+            stagger_simul_branchings(n)
+        #print(n.label,"MIDPOINT INDEX",n.midpoint_lv_index,n.midpoint)
+
+    stratlike.calibrate_brlens_strat(tree)
+
+def stagger_simul_branchings(n):
+    #last = n.lower 
+    #times = [n.lower]
+    last = n.lower
+    simul_times = []
+    last_i = 0
+    past_mid = False
+    for i, ch in enumerate(n.children):
+        #last = times[i-1]
+        print("ANC:",n.label, n.lower, n.strat[0],n.istip,"DESC",ch.label, ch.lower, ch.strat[0],ch.istip)
+        print(ch.label,ch.lower,last)
+        if ch.lower == last or round(ch.lower,4) == round(n.midpoint,4):
+            if last == n.lower:
+                print("CANNOT HAVE DESCENDANT BRANCH OFF AT SAME TIME AS N.UPPER")
+                print("ANC:",n.label, n.lower, n.strat[0],n.istip)
+                print("DESC",ch.label, ch.lower, ch.strat[0],ch.istip)
+                print("function `stagger_simul_branchings()` in tree_utils.py")
+                print(n.get_newick_repr())
+                sys.exit()
+            #if simul_found == False:
+            simul_times.append(round(ch.lower,4))
+        #times.append(ch.lower)
+        last = ch.lower
+        #print(ch.label,times)
+    simul_times = list(set(simul_times))
+    for time in simul_times:
+        last = n.lower
+        past_mid = False
+        for i, ch in enumerate(n.children):
+            if past_mid == False and ch.lower < n.midpoint:
+                last = n.midpoint
+                past_mid = True
+            if round(ch.lower,4) == time:
+                diff = last - ch.lower
+                newtime = ch.lower + (diff / 6.0)
+                ch.lower = newtime
+            print(ch.label,ch.lower)
+            last = ch.lower
+    #sys.exit()
+
+
 def map_strat_to_tree(tree, flnm):
     fl = open(flnm, "r")
     fl.readline()
     ranges = {}
 
     for line in fl:
+        if line.strip() == "":
+            continue
         spls = line.strip().split()
         spnm = spls[0]
         fad = float(spls[1])
@@ -579,3 +944,5 @@ def map_strat_to_tree(tree, flnm):
                 sys.exit()
 
     stratlike.calibrate_brlens_strat(tree)
+    sort_children_by_age(tree)
+

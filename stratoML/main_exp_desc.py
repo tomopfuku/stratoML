@@ -10,8 +10,8 @@ import pandas as pd
 from main_prob_tree_anc import *
 
 
-if len(sys.argv) != 3:
-    print("usage:",sys.argv[0]," <tree> <stratigraphic ranges>")
+if len(sys.argv) < 3:
+    print("usage:",sys.argv[0]," <tree> <stratigraphic ranges> <OPTIONAL: COMPLETENESS LEVEL TO CALCULATE>")
     sys.exit()
 
 nwk = open(sys.argv[1],"r").readline().strip()
@@ -27,9 +27,15 @@ r = res.x[2]
 print("speciation rate:",p)
 print("extinction rate:",q)
 print("preservation rate:",r)
-print("completeness:",r / (r + q))
+completeness = r / (r + q)
+print("completeness:",completeness)
 
 stratlike.bds_dates(p,q,r,tree)
+
+if len(sys.argv) == 4:
+    completeness = float(sys.argv[3])
+    r = abs ( (completeness * q) / (completeness - 1.) )
+    print("SIMULATED preservation rate (based on "+str(completeness)+" completeness): " +str(r)) 
 
 alltax   = []
 allprobs = []
@@ -52,7 +58,7 @@ expect_df = pd.DataFrame(tax_expect).transpose().rename(columns={0:"n_obs",1:"ex
 expect_df["n_below_exp"] = expect_df["n_obs"] - expect_df["expect_weighted"]
 
 
-flpref = ".".join(sys.argv[1].strip().split(".")[0:-1])
+flpref = ".".join(sys.argv[1].strip().split(".")[0:-1]) + "." + str(round(completeness * 100))
 expect_df.to_csv(flpref+".expect_desc",sep=",")
 
 plt.scatter(expect_df["duration"],expect_df["expect_weighted"],color="black")

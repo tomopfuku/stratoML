@@ -21,13 +21,17 @@ if __name__ == "__main__":
     tree = tree_reader.read_tree_string(nwk)
     tree_utils.map_strat_to_tree(tree,sys.argv[2])
     stratlike.calibrate_brlens_strat(tree,0.4)
+
+    #for n in tree.iternodes():
+    #    print(n.label,n.lower,n.upper,[(ch.label,ch.lower) for ch in n.children])
+    #sys.exit()
     pqr_start = np.array([0.5,0.5,1.0])
     res = basinhopping(stratlike.bds_neg_ll,x0=pqr_start,niter=20,minimizer_kwargs={"method":"L-BFGS-B","args":(tree),"bounds":((0.00001,10),(0.00001,10),(0.00001,20))})
     p = res.x[0]
     q = res.x[1]
     r = res.x[2]
 
-    stratlike.bds_dates(p,q,r,tree)
+    #stratlike.bds_dates(p,q,r,tree)
 
     print("speciation:",p,"\nextinction:",q,"\npreservation",r,"\n")
     #for n in tree.iternodes():

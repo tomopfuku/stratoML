@@ -1,0 +1,494 @@
+import sys
+import node
+import seq
+import polymorphism as pm
+import utils
+
+def create_nodes(seqs,ranges):
+    nodes=[]
+    for i in seqs:
+        try:
+            currange=ranges[i.name]
+        except:
+            print("your trait and stratigraphic data do not match.")
+            print(i.name,"in the trait file cannot be found in the stratigraphic range data")
+            sys.exit()
+        newnode=node.Node()
+        newnode.label=i.name
+        newnode.data["disc_morph"]=i.seq
+        newnode.data["strat"]=currange
+        newnode.istip = True
+        #print(currange)
+        nodes.append(newnode)
+    nodes.sort(key=lambda x: x.data["strat"]["start"],reverse=True)
+    return nodes
+
+def calc_strat_dist(ni,nj):
+    nistart=ni.data["strat"]["start"]
+    njstart=nj.data["strat"]["start"]
+    niend=ni.data["strat"]["end"]
+    njend=nj.data["strat"]["end"]
+    rangei=[i for i in range(nistart,niend)]
+    rangej = [i for i in range(njstart,njend)]
+    overlap = set(rangei).intersection(set(rangej))
+    if len(overlap) > 0:
+        return 0
+    else:
+        nodes = [ni,nj]
+        nodes.sort(key=lambda x: x.data["strat"]["start"])
+        dist = nodes[1].data["strat"]["start"]-nodes[0].data["strat"]["end"]
+        return dist
+
+def calc_disc_morph_dist(ni,nj):
+    ni_morph=ni.data["disc_morph"].split()
+    nj_morph=nj.data["disc_morph"].split()
+    diff = 0
+    for i,_ in enumerate(ni_morph):
+        chari=ni_morph[i].split("|")
+        charj=nj_morph[i].split("|")
+        if chari[0] == "?" or charj[0] == "?":
+            continue
+        #diff += len(set(chari).symmetric_difference(set(charj)))
+        overlap = set(chari).intersection(set(charj))
+        if len(overlap)==0:
+            diff += 1
+    return diff #/ float(len(ni_morph))
+
+def calc_total_dist(ni,nj):
+    strat_dist = calc_strat_dist(ni,nj)
+    morph_dist = calc_disc_morph_dist(ni,nj)
+    #print(morph_dist,strat_dist)
+    #tot_dist = morph_dist
+    tot_dist = strat_dist + morph_dist
+    #print(ni.label,nj.label,morph_dist,strat_dist,tot_dist)
+    return tot_dist
+
+def calc_net_div(dist_mat):
+    #print(len(dist_mat)) 
+    net_divs = {}
+    nsp = float(len(dist_mat))
+    for n in dist_mat:
+        sumd = 0.0
+        sumd = float(sum(dist_mat[n].values()))
+        nd = (1./(nsp-2.)) * sumd
+        net_divs[n] = nd
+    return net_divs
+
+def calc_adj_dist_matrix(dist_mat):
+    net_divs = calc_net_div(dist_mat)
+    adj_d = {}
+    for ni in dist_mat:
+        adj_d[ni]={}
+        cur_di = dist_mat[ni]
+        cur_ndi = net_divs[ni]
+        for nj in cur_di:
+            cur_ndj = net_divs[nj]
+            cur_d = cur_di[nj]
+            cur_adj_d = cur_d - (cur_ndi + cur_ndj)
+            #print(cur_d,cur_ndi,cur_ndj,cur_adj_d)
+            adj_d[ni][nj]=cur_adj_d
+    return adj_d
+
+def calc_dist_matrix(nodes):
+    d={}
+    for i,ni in enumerate(nodes):
+        for j,nj in enumerate(nodes):
+            if i == j or i > j:
+                continue
+            curd = calc_total_dist(ni,nj)
+            try:
+                d[ni][nj]=curd
+            except:
+                d[ni]={}
+                d[ni][nj]=curd
+            try:
+                d[nj][ni]=curd
+            except:
+                d[nj]={}
+                d[nj][ni]=curd
+    return d
+
+def find_oldest_child_FA(node):
+    oldest = 10000
+    for ch in node.children:
+        curst = ch.data["strat"]["start"]
+        if curst < oldest:
+            oldest = curst
+    return oldest
+
+def add_implied_anc_dist(dist_mat,newnode,remove=True):
+    anc_dists = {}
+    ch = newnode.children
+    for i in dist_mat:
+        if len(set([i]).intersection(set(ch))) > 0:
+            continue
+        try:
+            d0 = dist_mat[i][ch[0]]
+            d1 = dist_mat[i][ch[1]]
+        except:
+            continue
+        chd = dist_mat[ch[0]][ch[1]]
+        newdist = ((d0 + d1- chd)/2.0)
+        dist_mat[i][newnode]=newdist
+        anc_dists[i]=newdist
+        if remove == True:
+            del dist_mat[i][ch[0]]
+            del dist_mat[i][ch[1]]
+    dist_mat[newnode]=anc_dists
+    if remove == True:
+        del dist_mat[ch[0]]
+        del dist_mat[ch[1]]
+    return dist_mat
+
+def join_closest(otus,dist_mat):
+    otu = otus[0]
+    newnodes=[]
+    tempmin = min(dist_mat[otu].values())
+    min_node = [i for i in dist_mat[otu] if dist_mat[otu][i] == tempmin][0]
+    if min_node.data["strat"]["start"] < otu.data["strat"]["start"]: #and min_node.istip:
+        otu.parent = min_node
+        min_node.children.append(otu)
+        del dist_mat[otu]
+        for i in dist_mat:
+            del dist_mat[i][otu]
+        otus.pop(0)
+        #print(len(dist_mat))
+    else:
+        newpar = node.Node()
+        newpar.children = [otu,min_node]
+        min_node.parent = newpar
+        otu.parent = newpar
+        newpar.data["strat"]={}
+        newpar.data["strat"]["start"] = otu.data["strat"]["start"]
+        newpar.data["strat"]["end"] = otu.data["strat"]["start"]
+        #print([i.label for i in otus])
+        add_implied_anc_dist(dist_mat,newpar)
+        otus.pop(0)
+        #print(min_node.label)
+        #print([i.label for i in otus])
+        otus.remove(min_node)
+        otus = [newpar] + otus
+        newnodes.append(newpar)
+        #sys.exit()
+    return otus,newnodes,dist_mat
+
+def connect_last_two(otus):
+    n1=otus[0]
+    n2=otus[1]
+    root = node.Node()
+    n1.parent=root
+    n2.parent=root
+    root.children=[n1,n2]
+    root.data["strat"]={}
+    if n1.data["strat"]["start"]==n2.data["strat"]["start"]:
+        root.data["strat"]["start"]=n1.data["strat"]["start"]
+        root.data["strat"]["end"]=n1.data["strat"]["start"]
+    elif n1.data["strat"]["start"]<n2.data["strat"]["start"]:
+        root.data["strat"]["start"]=n1.data["strat"]["start"]
+        root.data["strat"]["end"]=n1.data["strat"]["start"]
+    elif n1.data["strat"]["start"]>n2.data["strat"]["start"]:
+        root.data["strat"]["start"]=n2.data["strat"]["start"]
+        root.data["strat"]["end"]=n2.data["strat"]["start"]
+    return root
+
+ 
+def find_closest(dist_mat):
+    seen = {}
+    min_pair=None
+    min_score = 10000000000000000.0
+    for i in dist_mat:
+        print(i.label,[(n.label,dist_mat[i][n]) for n in dist_mat[i]])
+        seen[i]=True
+        for j in dist_mat[i]:
+            try:
+                seen[j]
+                continue
+            except:
+                curscore = dist_mat[i][j]
+                if curscore < min_score:
+                    min_score = curscore
+                    min_pair = (i,j)
+    return min_pair
+
+def connect_sisters(pair,dist_mat,remove=True):
+    newpar = node.Node()
+    newpar.children = pair 
+    for nch in pair:
+        nch.parent = newpar
+    oldest_ch_age = find_oldest_child_FA(newpar)
+    newpar.data["strat"] = {"start": oldest_ch_age, "end": oldest_ch_age, "nocc":0}
+    dist_mat = add_implied_anc_dist(dist_mat,newpar,remove=remove)
+    return dist_mat,newpar
+
+def remove_older_ds(dist_mat,node):
+    older_nodes = {}
+    age_lim = node.data["strat"]["start"]
+    for n in dist_mat[node]:
+        if n.data["strat"]["start"] <= age_lim:
+            older_nodes[n]=True
+    for n in older_nodes:
+        del dist_mat[node][n]
+        del dist_mat[n][node]
+    if len(dist_mat[node]) == 0:
+        del dist_mat[node]
+    return dist_mat
+
+def join_two_closest(dist_mat):
+    pair = list(find_closest(dist_mat))
+    pair.sort(key=lambda x: x.data["strat"]["start"])
+    print([n.label for n in pair])
+    if pair[0].data["strat"]["start"] < pair[1].data["strat"]["start"] and pair[0].istip:
+        anc = pair[0]
+        desc = pair[1]
+        desc.parent = anc
+        anc.children.append(desc)
+        if desc.istip == False:
+            del dist_mat[desc]
+            for i in dist_mat:
+                try:
+                    del dist_mat[i][desc]
+                except:
+                    continue
+        else:
+            dist_mat = remove_older_ds(dist_mat,desc)
+
+    else:
+        dist_mat,_=connect_sisters(pair,dist_mat,False)
+        del dist_mat[pair[0]][pair[1]]
+        del dist_mat[pair[1]][pair[0]]
+        for n in pair:
+            if n.istip == False:
+                del dist_mat[n]
+                for nn in dist_mat:
+                    #print("HERE",n.label,nn.label)
+                    try:
+                        del dist_mat[nn][n]
+                    except:
+                        True
+            else:
+                #print([nn.label for nn in dist_mat[n]])
+                dist_mat = remove_older_ds(dist_mat,n)
+                #print([nn for nn in dist_mat[n]])
+    return dist_mat
+
+def strato_nj(dist_mat,adj_d=False,root="oldest"):
+    otus = list(dist_mat.keys())
+    while 1:
+        print(len(otus))
+        if len(otus) == 2:
+            if otus[0].data["strat"]["start"] == otus[1].data["strat"]["start"]:
+                root = connect_last_two(otus)
+            else:
+                otus.sort(key=lambda n: n.data["strat"]["start"],reverse=True)
+                otus[0].parent=otus[1]
+                otus[1].children.append(otus[0])
+                root = otus[1]
+            break           
+
+        if adj_d == True:
+            adj_dist_mat = calc_adj_dist_matrix(dist_mat)
+            dist_mat = join_two_closest(adj_dist_mat)
+        else:
+            dist_mat = join_two_closest(dist_mat)
+        otus =  [n for n in dist_mat.keys() if n.parent == None]
+    print(root.get_newick_repr())
+    return root
+
+
+def trace_ancestor(noanc,dist_mat):
+    """for ni in dist_mat:
+        for nj in dist_mat[ni]:
+            print(ni.label,nj.label,dist_mat[ni][nj])"""
+
+    otu = noanc[0]
+    tempmin = min(dist_mat[otu].values())
+    min_node = [i for i in dist_mat[otu] if dist_mat[otu][i] == tempmin][0]
+    #print([i.label for i in noanc])
+    print(otu.label,min_node.label)
+    if min_node.data["strat"]["start"]<=otu.data["strat"]["start"] and min_node.istip:
+        otu.parent = min_node
+        min_node.children.append(otu)
+        del dist_mat[otu]
+        for n in dist_mat:
+            #print(n.label,otu.label+"here", n.label,[i.label for i in dist_mat[n].keys()])
+            try:
+                del dist_mat[n][otu]
+            except:
+                continue
+        noanc.pop(0)
+    #elif min_node.istip == False:
+    #    connect_sisters([min_node,otu],dist_mat,True)
+    return noanc,dist_mat
+
+def stratophenetic(otus,dist_mat,adj_d=False,root="oldest"): 
+    noanc,dist_mat = join_layer_mutual_pairs(otus,dist_mat)
+    count=0
+    while 1:
+        if len(noanc) == 2:
+            if root == "implied":
+                root = connect_last_two(noanc)
+            elif root == "oldest":
+                noanc[0].parent=noanc[1]
+                noanc[1].children.append(noanc[0])
+                root = noanc[1]
+                print(root.label)
+            break
+        print([n.label for n in noanc])
+        noanc,dist_mat = trace_ancestor(noanc,dist_mat)
+        count+=1
+        if count > 100000:
+            sys.exit()
+    print(root.get_newick_repr())
+    for n in root.iternodes():
+        n.note = str(count)
+        if n.istip == False:
+            n.label="n"+n.note
+        count+=1
+
+    return root
+
+def get_tax_each_layer(otus):
+    layer_tax = {}
+    for n in otus:
+        cur_layer = n.data["strat"]["start"]
+        try:
+            layer_tax[cur_layer].append(n)
+        except:
+            layer_tax[cur_layer]=[]
+            layer_tax[cur_layer].append(n)
+    return layer_tax
+
+def find_mutual_pairs_list(tax,dist_mat):
+    newnodes = []
+    for ind,ni in enumerate(tax):
+        if ni.parent != None:
+            continue
+        min_val = min(dist_mat[ni].values())
+        min_ni = [i for i in dist_mat[ni] if dist_mat[ni][i] == min_val][0]
+        if min_ni.data["strat"]["start"]==ni.data["strat"]["start"]:
+            min_val = min(dist_mat[min_ni].values())
+            min_nj = [i for i in dist_mat[min_ni] if dist_mat[min_ni][i] == min_val][0]
+            if min_nj == ni:
+                dist_mat,newpar = connect_sisters([ni,min_ni],dist_mat,False)
+                newnodes.append(newpar)
+    return dist_mat,newnodes
+
+
+def join_layer_mutual_pairs(otus,dist_mat):
+    layer_tax = get_tax_each_layer(otus)
+    newotus=[n for n in otus]
+    for layer in layer_tax:
+        tax = layer_tax[layer]
+        while 1:
+            dist_mat,newnodes=find_mutual_pairs_list(tax,dist_mat)
+            newotus+=newnodes
+            if len(newnodes) == 0:
+                break
+    noanc = [n for n in newotus if n.parent == None]
+    noanc.sort(key=lambda n: n.data["strat"]["start"],reverse=True)
+    return noanc,dist_mat
+
+
+def join_two_closest(dist_mat):
+    pair = list(find_closest(dist_mat))
+    dist_mat,_=connect_sisters(pair,dist_mat,False)
+    del dist_mat[pair[0]][pair[1]]
+    del dist_mat[pair[1]][pair[0]]
+    for n in pair:
+        del dist_mat[n]
+        for nn in dist_mat:
+                del dist_mat[nn][n]
+    return dist_mat
+
+
+def regular_nj(dist_mat):
+    adj_dist_mat = calc_adj_dist_matrix(dist_mat)
+    dist_mat = join_two_closest(adj_dist_mat)
+
+def stratophenetic_past_pres(otus,dist_mat,adj_d=False):
+    allnodes=[n for n in otus]
+    root=None
+    while 1:
+        if len(otus) == 2:
+            root = connect_last_two(otus)#otus[0]
+            break
+        if adj_d == True:
+            adj_dist_mat = calc_adj_dist_matrix(dist_mat)
+            otus,newnodes,dist_mat = join_closest(otus,adj_dist_mat)
+        else:
+            otus,newnodes,dist_mat = join_closest(otus,dist_mat)
+        if len(newnodes)!=0:
+            allnodes=newnodes+allnodes        
+    count=0
+    for n in root.iternodes():
+        n.note = str(count)
+        if n.istip == False:
+            n.label="n"+n.note
+        count+=1
+
+    print(root.get_newick_repr())
+    return root
+
+"""
+##### the graveyard.
+
+
+"""
+
+
+if len(sys.argv)<3:
+    print("\nusage: "+sys.argv[0]+" <ranges file> <fasta file> <OPTIONAL: range absolute starts and ends>\n\nNOTE:fasta can contain polymorphisms but should be encoded e.g., 0|1\n")
+    sys.exit()
+
+seqs=seq.read_fasta_file(sys.argv[2])
+ranges,layers = utils.read_strat_discrete(sys.argv[1])
+otus = create_nodes(seqs,ranges)
+d = calc_dist_matrix(otus)
+#tree = stratophenetic_past_pres(otus,d,False)
+#tree = stratophenetic(otus,d,False)
+tree = strato_nj(d,True)
+
+
+if len(sys.argv) == 4:
+    rangetimes = {}
+    lines=open(sys.argv[3],"r").readlines()
+    for line in lines[1:]:
+        spls=line.strip().split()
+        binlab = int(spls[0])
+        binstart=spls[1]
+        binend=spls[2]
+        rangetimes[binlab]=(binstart,binend)
+    outfl = open("paleoPhylo.tab","w")
+    outfl.write("Name,Code,Start,End,Parent\n")
+    #contranges={}
+    for n in tree.iternodes("postorder"):
+        #print(n.note)
+        nm = n.label
+        startbin = n.data["strat"]["start"]
+        endbin = n.data["strat"]["end"]
+        startcont = rangetimes[startbin][0]
+        endcont = rangetimes[endbin][1]
+        #contranges[n]=float(startcont)
+        if len(n.children) != 0:
+            maxstart=0.
+            for ch in n.children:
+                chstart=float(ch.data["contstrat"][0])
+                if float(chstart)>maxstart:
+                    maxstart = chstart
+            if float(startcont) <= maxstart:
+                newstart=maxstart+0.5
+                startcont=str(newstart)
+            if n.istip == False:
+            #    startcont=str(float(startcont))
+                endcont=str(float(startcont)-0.5)
+        if n.parent != None:
+            if n.parent.data["strat"]["end"] < n.data["strat"]["start"] and n.istip:
+                n.data["strat"]["start"] = n.parent.data["strat"]["end"] 
+                startcont = rangetimes[n.parent.data["strat"]["end"]][1]
+        n.data["contstrat"]=(startcont,endcont)
+    for n in tree.iternodes("preorder"):
+        parnm="NA"
+        if n.parent != None:
+            parnm = n.parent.note
+        outfl.write(n.label+","+str(n.note)+","+str(n.data["contstrat"][0])+","+str(n.data["contstrat"][1])+","+parnm+"\n")
+    outfl.close()
