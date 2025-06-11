@@ -60,7 +60,7 @@ def read_fasta(flnm):
                 seq.append(states)
             traits[curlab] = seq
             #print(curlab,seq)
-    state_spaces = [1]
+    state_spaces = [2]
     for i in range(len(allstates)):
         curst = set(allstates[i])
         state_spaces.append(max(curst)+1)

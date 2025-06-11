@@ -40,12 +40,14 @@ if __name__ == "__main__":
             tree = tree_reader.read_tree_string(nwk)
             tree_utils.map_strat_to_tree(tree,sys.argv[3])    
             tree_utils.map_tree_disc_traits(tree,retraits,ss)
-            
-            qmats = qmat.Qmat(0.05,0.05)
+            tree_utils.fix_obs_lv(tree) 
+            qmats = qmat.Qmat(0.05,0.01)
             for n in tree.iternodes():
                 n.update_pmat(qmats,max(ss))
 
-            aic = tree_utils.single_tree_aic(tree,ss,sys.argv[4])
+
+            aic,traitll,bdsll = tree_utils.calc_tree_ll2(tree,qmats,ss,"hr97")
+            #aic = tree_utils.single_tree_aic2(tree,ss,sys.argv[4])
             if aic < bestAIC:
                 bestAIC = aic
                 bestIND = i

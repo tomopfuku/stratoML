@@ -397,7 +397,7 @@ def random_spr(tree):
     return pluck_node,prev_par,sib
 
 def calc_tree_ll2(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.0002]):
-    #stratlike.calibrate_brlens_strat(tree,0.2)
+    stratlike.calibrate_brlens_strat(tree,0.2)
     #qmats = qmat.Qmat(0.01,0.05)
     sort_children_by_age(tree)
     init_budd_marginals(tree, len(ss), ss)
@@ -699,6 +699,11 @@ def tree_search(tree, ss):
     print(bestll)
     print(besttree)
 
+def single_tree_aic2(tree,qmats,ss,tree_mod="bds",morph_mod="mfc2",anc_start=False):
+    stratlike.calibrate_brlens_strat(tree,0.3)
+    bestaic,traitll,bdsll = calc_tree_ll2(tree,qmats,ss,tree_mod)
+    return bestaic
+
 def single_tree_aic(tree,ss,tree_mod="bds",morph_mod="mfc2",anc_start=False):
     stratlike.calibrate_brlens_strat(tree,0.3)
     bestaic,traitll,bdsll = calc_tree_ll(tree,ss,tree_mod)
@@ -844,44 +849,50 @@ def fix_obs_lv(tree, do_tips = True):
 
 def sort_children_by_age(tree):
     for n in tree.iternodes(1):
-        n.midpoint = (n.lower+n.upper) / 2.0
-        if n.istip and len(n.children) > 0:
-            n.children.sort(key=lambda chd: chd.lower, reverse=True)
+        if n.istip:
+            n.midpoint = (n.lower+n.upper) / 2.0
+            if n.istip and len(n.children) > 0:
+                n.children.sort(key=lambda chd: chd.lower, reverse=True)
 
-        last = n.lower        
-        m = 0
-        past_mid = False
-        simul = False
-        for i, ch in enumerate(n.children):
-            if ch.lower == last:
-                #print(ch.label,ch.lower,n.children[i-1].label,n.children[i-1].lower)
-                simul = True
-            ch.index_from_parent = i
-            if round(ch.lower,4) == round(n.midpoint,4):
-                diff = round(last - ch.lower,3)
-                n.midpoint += round((diff / 6.),3) # if midpoint is the same as a budding point, move the midpoint slightly back toward the last budding point or the start of the lineage
-                #simul = True
-                #m = ch.
-            if ch.lower > n.midpoint:
-                ch.parent_lv_index = len(n.children) - i
-            elif ch.lower < n.midpoint:
-                if past_mid == False:
-                    m = len(n.children) - i
-                    past_mid = True
-                ch.parent_lv_index = len(n.children) - i - 1
-            #print(n.label,ch.label, ch.parent_lv_index, ch.lower)
-            last = ch.lower 
-            
-        n.midpoint_lv_index = m
-        if simul == True and n.istip:
-            stagger_simul_branchings(n)
-        #print(n.label,"MIDPOINT INDEX",n.midpoint_lv_index,n.midpoint)
+            last = n.lower        
+            m = 0
+            past_mid = False
+            simul = False
+            for i, ch in enumerate(n.children):
+                if ch.lower == last:
+                    #print(ch.label,ch.lower,n.children[i-1].label,n.children[i-1].lower)
+                    simul = True
+                ch.index_from_parent = i
+                if round(ch.lower,4) == round(n.midpoint,4):
+                    diff = round(last - ch.lower,3)
+                    n.midpoint += round((diff / 6.),3) # if midpoint is the same as a budding point, move the midpoint slightly back toward the last budding point or the start of the lineage
+                    #simul = True
+                    #m = ch.
+                if ch.lower > n.midpoint:
+                    ch.parent_lv_index = len(n.children) - i
+                elif ch.lower < n.midpoint:
+                    if past_mid == False:
+                        m = len(n.children) - i
+                        past_mid = True
+                    ch.parent_lv_index = len(n.children) - i - 1
+                #print(n.label,ch.label, ch.parent_lv_index, ch.lower)
+                last = ch.lower 
+                
+            n.midpoint_lv_index = m
+            if simul == True and n.istip:
+                stagger_simul_branchings(n)
+            #print(n.label,"MIDPOINT INDEX",n.midpoint_lv_index,n.midpoint)
+        else:
+            for ch in n.children:
+                ch.parent_lv_index = 0
 
     stratlike.calibrate_brlens_strat(tree)
 
 def stagger_simul_branchings(n):
     #last = n.lower 
     #times = [n.lower]
+    print("SIMUL BRANCHINGS NOT FIXED YET")
+    sys.exit()
     last = n.lower
     simul_times = []
     last_i = 0
@@ -942,7 +953,9 @@ def map_strat_to_tree(tree, flnm):
             except:
                 print(n.label," is in the tree but was not found in the stratigraphic range data")
                 sys.exit()
+    
 
     stratlike.calibrate_brlens_strat(tree)
+
     sort_children_by_age(tree)
 

@@ -1,0 +1,2 @@
+tomo@Mac micraster % python ../../main_single_tree_like2.py best_mfc2.4th.tre micrasteridae-character_matrix.16.fa micrasteridae-stratigraphy_abs.stag.csv hr97 mfc2
+2682.2331876353805 -1297.2152485035947 -21.901345314095476

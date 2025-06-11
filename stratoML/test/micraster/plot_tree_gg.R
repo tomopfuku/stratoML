@@ -31,8 +31,8 @@ for (row in 1:nrow(tab)) {
 }
 
 p=p+geom_rect(aes(xmin=Start,xmax=End,ymin=ymin,ymax=ymax),fill="grey")+theme_bw() + 
-	geom_text(aes(x=tab$text_pos_x,y=tab$text_pos_y),hjust=-0.01,label=tab$Name,size=5.2,fontface="italic") #+
-	#geom_text(aes(x=Start-((Start-End)/5),y=ymin - 0.6),hjust=-0.01,label=tab$support,size=3.9)
+	geom_text(aes(x=tab$text_pos_x,y=tab$text_pos_y),hjust=-0.01,label=tab$Name,size=5.2,fontface="italic") +
+	geom_text(aes(x=Start-((Start-End)/5),y=ymin - 0.6),hjust=-0.01,label=round(tab$Support,2),size=3.9)
 
 p=p+geom_rect(aes(xmin=FAD,xmax=LAD,ymin=ymin,ymax=ymax),fill="grey35")+theme_bw()#+geom_text(aes(x=tab$text_pos_x,y=tab$text_pos_y),hjust=-0.01,label=tab$Name,size=5.2)
 p=p+geom_errorbar(aes(y=(ymax+ymin)/2, xmin=tab$X2.5HPD, xmax=tab$X97.5HPD), alpha=0.9,width=0.8)
@@ -41,7 +41,7 @@ p=p+labs(x="ma",y="")
 p=p+theme(axis.text.y=element_blank(),axis.ticks.y=element_blank(),panel.grid.major.y = element_blank())
 p=p+scale_x_reverse()
 p=p+xlim(max(tab$Start),min(tab$text_pos_x)-8.01)
-p=p+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+p=p+theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
 panel.background = element_blank(), axis.line = element_line(colour = "black"))
 #traits = read.table("ectocyon.p3.tab",sep=" ")
 #tab$ord=row.names(tab)

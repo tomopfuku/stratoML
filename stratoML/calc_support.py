@@ -81,3 +81,4 @@ for n in maptree.iternodes():
         if i == bs:
             print(n.label,bs,bpsupp[i])
 
+print(tree.get_newick_repr())

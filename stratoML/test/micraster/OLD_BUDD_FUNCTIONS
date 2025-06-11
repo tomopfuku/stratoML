@@ -1,0 +1,160 @@
+
+def calc_midpoint_ll(node.Node n, qmat.Qmat qmats, double dt, int chari, int cur_k):
+    cdef double[:,:] pmat
+    cdef double[:] last_like#, all_marg
+    cdef int i, j
+    cdef double tr_prob, last_like_val, cond_prob, marg_prob 
+    pmat = qmats.calc_single_p_mat(dt, cur_k)
+    if n.midpoint_lv_index == 0:
+        last_like = missing_trait_vec(cur_k)
+    else:
+        last_like = n.timeslice_lv[n.midpoint_lv_index-1][chari]
+
+    for i in range(len(n.disc_traits[chari])):
+        tr_prob = n.disc_traits[chari][i]
+        if tr_prob == 0.0:
+            continue
+        marg_prob = 0.0
+        for j in range(len(last_like)):
+            last_like_val = last_like[j]
+            if last_like_val == 0.0:
+                continue
+            cond_prob = pmat[i][j]
+            cond_prob *= last_like_val
+            marg_prob += cond_prob
+        n.timeslice_lv[n.midpoint_lv_index][chari][i] = marg_prob
+    n.scaling_factors[n.midpoint_lv_index][chari] = max(n.timeslice_lv[n.midpoint_lv_index][chari]) # update scaling factor vector
+    n.timeslice_lv[n.midpoint_lv_index][chari] = max_scale_timeslice(n.timeslice_lv[n.midpoint_lv_index][chari])
+
+cdef budd_loglike_single_trait_marg(node.Node n, qmat.Qmat qmats, int cur_k, int chari): #, double desc_weight):
+    cdef double scen_cond_like,scenario_like, ana_cond_like, weight, ana_prob, marg_prob, dt, traitll, stateprob, traitprob, prev_time, allstprob = 0.0
+    cdef double[:,:] p1, p2
+    cdef double[:] chd_tr, par_tr, ana_tr, anc_marg, miss_tr
+    cdef long[:,:] cur_scen
+    cdef long[:] inher, ancsts
+    cdef double[:,:] lv 
+    cdef bint mis, past_mid#, last_ts
+    cdef int lv_i, chd_i, i, nscen, j, ancst, startst, k, l, maxstates
+    cdef node.Node ch
+
+    cur_scen = bm.get_buddmat(cur_k)
+    past_mid = False
+    prev_time = n.upper
+    miss_tr = missing_trait_vec(cur_k)
+    #prev_ls = [prev_time]
+    #prev_ch = ["tip"]
+    if n.midpoint_lv_index == 0:
+            dt = n.midpoint - prev_time
+            calc_midpoint_ll(n, qmats, dt, chari, cur_k) # need to compute the likelihood at the midpoint if we've hit the first child beyond the midpoint
+            past_mid = True
+            prev_time = n.midpoint
+            #prev_ls.append(prev_time)
+            #prev_ch.append("mid")
+
+    for chd_i in reversed( range( len(n.children) ) ): # start with child farthest from the root
+        ch = n.children[chd_i]
+
+        #prev_ch.append(ch.label)
+        #prev_ls.append(prev_time)
+        if len(ch.children) > 0 and ch.midpoint_lv_index != len(ch.children):
+            dt = ch.lower - ch.children[0].lower
+        elif len(ch.children) > 0 and ch.midpoint_lv_index == len(ch.children) or len(ch.children) == 0:
+            dt = ch.lower - ch.midpoint
+        
+        if dt < 0.0000001:
+            print("SPOT1",n.label, ch.label, dt, "ERROR: ZERO BLEN ENCOUNTERED")
+            print(n.label,ch.label,ch.lower,ch.upper,ch.midpoint,ch.children[0].lower,ch.children[0].label)
+            sys.exit()
+        
+        p1 = qmats.calc_single_p_mat(dt, cur_k) # P matrix for segment along the child leading to the first likelihood vector
+
+        dt = ch.lower - prev_time
+        p2 = qmats.calc_single_p_mat(dt, cur_k)
+        if chd_i == len(n.children) - 1 and past_mid == False: # if we are on most distal desc and that occurs before midpoint
+            ana_tr = miss_tr 
+        else:
+            ana_tr = n.timeslice_lv[ch.parent_lv_index - 1][chari]
+ 
+        if dt < 0.0000001:
+            print("SPOT2",n.label, ch.label, dt, "ERROR: ZERO BLEN ENCOUNTERED")
+            print(n.label,ch.label,ch.lower,ch.upper,ch.midpoint,ch.children[0].lower,ch.children[0].label)
+            sys.exit()
+
+        chd_tr = ch.timeslice_lv[-1][chari] #.disc_traits[chari]            
+        #print(n.label,ch.label,list(chd_tr), dt0, dt)
+        allstprob = 0.0
+        ancsts = np.array([i for i in range(1,len(cur_scen))])
+
+        anc_marg = np.zeros(len(ancsts)+1)
+        for ancst in ancsts:
+            inher = cur_scen[ancst]
+            nscen = count_nscenarios(inher)
+            weight = 1.0 / ( float(nscen) * float(len(cur_scen)-1) )
+            marg_prob = 0.0
+            ana_cond_like = 0.0
+            for l in range(len(ana_tr)):
+                ana_prob = ana_tr[l]
+                if ana_prob == 0.0:
+                    continue
+                ana_cond_like += p2[ancst][l] * ana_prob
+
+            for j in range(len(inher)): # calc cond like for each allowed inheritance scen
+                startst = inher[j]
+                if startst == 0:
+                    break
+
+                scen_cond_like = 0.0
+                for k in range(len(chd_tr)):
+                    traitprob = chd_tr[k]
+                    if k == int(2) ** cur_k: # NEED TO FIX
+                        break
+                    if traitprob == 0.0:
+                        continue
+                    scen_cond_like += p1[startst][k] * traitprob
+                scenario_like = ana_cond_like * scen_cond_like 
+                
+                scenario_like *= weight
+                marg_prob += scenario_like
+            anc_marg[ancst] = marg_prob 
+        n.scaling_factors[ch.parent_lv_index][chari] = max(anc_marg) # update scaling factor vector
+        
+        try:
+            anc_marg = max_scale_timeslice(anc_marg)
+        except:
+            print("ERROR RESCALING LIKELIHOOD VECTOR `budd_loglike_single_trait_marg()")
+            sys.exit()
+    
+        for j in range(len(anc_marg)):
+            n.timeslice_lv[ch.parent_lv_index][chari][j] = anc_marg[j] 
+
+        prev_time = ch.lower
+        if ch.parent_lv_index == n.midpoint_lv_index - 1:
+            dt = n.midpoint - prev_time
+            calc_midpoint_ll(n, qmats, dt, chari, cur_k) # need to compute the likelihood at the midpoint if we've hit the first child beyond the midpoint
+            past_mid = True
+            prev_time = n.midpoint
+            #prev_ls.append(prev_time)
+            #prev_ch.append("mid_post")
+
+
+
+
+#def update_scaling_factors(double[:] anc_marg, ):
+#    for 
+
+cdef budd_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
+    cdef int chari, cur_k #, chd_i, i ,j,nscen, ancst, k, maxstates
+    cdef double nodell, traitll#, desc_weight
+
+    #desc_weight = 1.0 / float(len(n.children))
+    
+    nodell = 0.0
+    for chari in range(1, len(ss)):
+        cur_k = ss[chari]
+        
+        if cur_k == 1:
+            continue
+
+        budd_loglike_single_trait_marg(n, qmats, cur_k, chari)#, desc_weight)
+        
+    #sys.exit()

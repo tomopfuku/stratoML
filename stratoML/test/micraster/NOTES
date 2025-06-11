@@ -32,3 +32,33 @@ python merge_support_tree_table.py best_hr.3.support best_hr.3.tree_table > best
 
 
 python get_n_states.py micrasteridae-character_matrix.fa best_hr.tree_table > best_hr.NSTATES
+
+
+####################
+
+ALL RERUN ANALYSES
+
+###################
+
+# Test tree
+
+python ../../main_single_tree_like2.py micrasteridae-parsimony.rr.16.tre micrasteridae-character_matrix.16.fa micrasteridae-stratigraphy_abs.stag.csv hr97 mfc2
+
+python ../../main_single_tree_like2.py best_mfc2.4th.tre micrasteridae-character_matrix.16.fa micrasteridae-stratigraphy_abs.stag.csv hr97 mfc2
+
+
+python plot_tree_table.py best_mfc2.tre micrasteridae-stratigraphy_abs.stag.csv top_trees_mfc2
+
+# get num of character states in each taxon and the inferred number in its ancestor 
+python ../../main_mfc2_asr.py best_mfc2.tre micrasteridae-character_matrix.16.fa micrasteridae-stratigraphy_abs.stag.csv hr97 mfc2 > num_states_mfc2.tab
+
+python plot_tree_table.py best_mfc2.2nd.tre micrasteridae-stratigraphy_abs.stag.csv top_trees_mfc2
+
+python plot_tree_table.py best_mfc2.3rd.tre micrasteridae-stratigraphy_abs.stag.csv top_trees_mfc2
+
+
+
+
+
+
+

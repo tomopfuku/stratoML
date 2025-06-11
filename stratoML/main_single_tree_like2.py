@@ -18,6 +18,7 @@ if __name__ == "__main__":
     for line in open(sys.argv[1],"r"):
         nwk = line.strip().split()[-1]
         tree = tree_reader.read_tree_string(nwk)
+
         tree_utils.map_strat_to_tree(tree,sys.argv[3])    
         #stratlike.calibrate_brlens_strat(tree,0.3)
         tree_utils.map_tree_disc_traits(tree,retraits,ss)
@@ -25,6 +26,7 @@ if __name__ == "__main__":
         #tree_utils.sort_children_by_age(tree)
         #tree_utils.init_budd_marginals(tree,len(ss))
         qmats = qmat.Qmat(0.01,0.05)
+
         for n in tree.iternodes():
             n.update_pmat(qmats,max(ss),"mid")
 
@@ -36,7 +38,8 @@ if __name__ == "__main__":
         t1 = time.time()
         aic,traitll,bdsll = tree_utils.calc_tree_ll2(tree,qmats,ss,"hr97")
         t2 = time.time()
-        print(aic,traitll,bdsll)
+        #print(aic,traitll,bdsll)
+        print(aic,nwk)
         #print("TIME OPTIMIZING",t2-t1)
         #tree_utils.tree_search3(tree,ss,qmats,"hr97",False)
 
