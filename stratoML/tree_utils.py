@@ -283,6 +283,7 @@ def find_new_ancestor2(tree,qmats,ss,startaic=None,tree_mod="bds"):
         startaic,_,_ = calc_tree_ll2(tree, qmats, ss,tree_mod)
     bestaic = startaic
     pluck_node = choose_descnode(descnodes)    # random.choice(descnodes)
+    pluck_node.lower = pluck_node.strat[0]
     prev_par, sib = prune_subtree(pluck_node)
     if sib:
         spare_hyp_anc = pluck_node.parent
@@ -892,6 +893,10 @@ def stagger_simul_branchings(n):
     #last = n.lower 
     #times = [n.lower]
     print("SIMUL BRANCHINGS NOT FIXED YET")
+    print(n.get_newick_repr())
+    print(n.label, n.lower)
+    for ch in n.children:
+        print(ch.label, ch.lower)
     sys.exit()
     last = n.lower
     simul_times = []

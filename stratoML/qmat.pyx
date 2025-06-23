@@ -57,8 +57,6 @@ cdef class Qmat:
         cdef long[:,:] smap = smaps.get_smap(nstates)
         cdef double scalar = 2.0 / float(nstates)
 
-        #print(nstates)
-        #print(smaps.get_smap(nstates)) 
         nrow = len(qmat)
         for i in range(nrow):
             qmat[i][i] = 0.0
@@ -66,8 +64,8 @@ cdef class Qmat:
                 continue
             for j in range(nrow):
                 if i != j:
-                    #if j == 0:  ## remove null state
-                    #    continue
+                    if j == 0:  ## remove null state
+                        continue
                     ndiff = 0
                     for ii in range(nstates):
                         if smap[i][ii] != smap[j][ii]:

@@ -1,0 +1,8 @@
+((tax5,tax4)tax3,(tax6)tax2)tax1;
+((tax5,tax2)tax3,(tax6)tax4)tax1;
+((tax4,tax2)tax3,(tax6)tax5)tax1;
+((tax5,tax4)tax2,(tax6)tax3)tax1;
+((tax5,tax2)tax2,(tax6)tax3)tax1;
+((tax4,tax2)tax2,(tax6)tax3)tax1;
+((tax5,tax4)tax3,tax6,tax2)tax1;
+((tax5,tax4)tax2,tax6,tax3)tax1;

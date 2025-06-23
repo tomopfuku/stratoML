@@ -30,6 +30,11 @@ if __name__ == "__main__":
         for n in tree.iternodes():
             n.update_pmat(qmats,max(ss),"mid")
 
+
+        #pmat = qmats.calc_single_p_mat(1.0, 2)
+        #for i in pmat:
+        #    print(list(i))
+
         #print(tree)
         #treell = -mfc.evaluate_m_l2(np.array([0.01,0.05]),tree,qmats,ss)
         #print("TREELL 1", treell) 

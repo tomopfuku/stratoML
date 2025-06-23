@@ -1068,9 +1068,11 @@ cdef double calc_invar_ll_marg(node.Node tree, qmat.Qmat qmats):
     cdef int i, j, count
     cdef double [:, :, :] pmats1, pmats2
 
+    """
     for n in tree.iternodes(1):
         if len(n.children) == 0:
             continue
+
         if n.istip == False:
             dt = get_child_dt(n.children[0])
             p1 = qmats.calc_single_p_mat(dt, 2)
@@ -1079,7 +1081,7 @@ cdef double calc_invar_ll_marg(node.Node tree, qmat.Qmat qmats):
             split_loglike_single_trait_marg(n, p1, p2, 2, 0)
         elif n.istip:
             budd_loglike_single_trait_marg(n, qmats, 2, 0)
-
+    """
     if tree.istip:
         plikes = calc_bud_root_ll_single_trait(tree, qmats, 2, 0)
     else:
@@ -1232,7 +1234,6 @@ cdef double budd_like_single_inheritance(long[:] inher, double[:] chd_tr, double
             print("WEIGHTED PROB FROM ",ancst,"TO",k,stateprob)
         marg_prob += stateprob
     return marg_prob
-"""
 
 
 cdef budd_loglike_single_trait_marg1(node.Node n, qmat.Qmat qmats, int cur_k, int chari, double desc_weight):
@@ -1328,6 +1329,7 @@ cdef budd_loglike_single_trait_marg1(node.Node n, qmat.Qmat qmats, int cur_k, in
     sys.exit()
 
  
+"""
 
 cdef double split_loglike_single_trait(node.Node n, int cur_k, int chari):
     cdef double traitprob, curp1, curp2, anclike, weight, charlike

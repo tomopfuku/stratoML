@@ -70,6 +70,7 @@ if __name__ == "__main__":
 
     node_cis = nl_cis
 
+    map_nnodes = len([n for n in tree.iternodes()])
 
     ############################
     ## NOW MAP SUPPORT VALUES ##
@@ -104,12 +105,13 @@ if __name__ == "__main__":
     origAIC = None
     for i in trees:
         aic = i[0]
+        cur_nnodes = len([n for n in i[1].iternodes()])
         rellike = math.exp(0.5*(best-aic))
         sumrellike+=rellike
         curtree = i[1]
         curbp = bp.decompose_tree(curtree,tipdic)
         same_tree = check_all_bps(origbp,curbp)
-        if same_tree:
+        if same_tree and cur_nnodes == map_nnodes:
             origAIC = rellike
         bpall.append((rellike,curbp))
 
