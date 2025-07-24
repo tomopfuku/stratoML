@@ -38,7 +38,7 @@ def read_fasta(flnm):
     for line in fl:
         if len(line.strip()) == 0:
             continue
-        if line[0] == ">":
+        if line.strip()[0] == ">":
             curlab = line.strip().replace(">","")
         else:
             linels = line.strip().split()
