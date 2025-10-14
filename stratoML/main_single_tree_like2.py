@@ -46,7 +46,7 @@ if __name__ == "__main__":
         #print(aic,traitll,bdsll)
         print(aic,nwk)
         #print("TIME OPTIMIZING",t2-t1)
-        #tree_utils.tree_search3(tree,ss,qmats,"hr97",False)
+        tree_utils.tree_search3(tree,ss,qmats,"hr97",False)
 
 
         """

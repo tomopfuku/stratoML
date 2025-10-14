@@ -39,7 +39,7 @@ def reroot_tree(oldroot,newroot,bifroot = True):
     print(oldroot.get_newick_repr())
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 4:
         print("usage:",sys.argv[0]," <tree> <stratigraphic ranges> <outgroup>")
         sys.exit()
 

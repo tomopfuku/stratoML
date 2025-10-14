@@ -673,7 +673,6 @@ def calc_ASR_down_budd_node(node.Node n, qmat.Qmat qmats, long[:] ss):#, double[
     cdef double[:,:] p1
     cdef double dt, last_time
     cdef int i, cur_k, ch_i
-
     last_time = n.lower
     past_mid = False
     mid_first = False
@@ -723,7 +722,6 @@ def budd_cladogenesis_one_step(node.Node ch, qmat.Qmat qmats, long[:] ss, double
         #print(cur_k, list(anc_marg[i][0:10]))
         cur_scen = bm.get_buddmat(cur_k)
         p1 = pmats[cur_k - 2] 
-
         for traitprob_i in range(len(desc_lv)):
             traitprob = desc_lv[i][traitprob_i]
             if traitprob == 0.0:
