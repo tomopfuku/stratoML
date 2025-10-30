@@ -109,8 +109,10 @@ if __name__ == "__main__":
         #tree_utils.init_budd_marginals(tree,len(ss))
 
         qmats = qmat.Qmat(0.02,0.01)
-        res_tr = minimize(mfc.evaluate_m_l2,x0=np.array([0.01,0.01]),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,0.5),(0.00001,0.5)))
-        print("mfc rates",res_tr.x)
+        #res_tr = minimize(mfc.evaluate_m_l2,x0=np.array([0.01,0.01]),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001, 5.0),(0.00001, 5.0)))
+        res_tr = minimize(mfc.evaluate_m_l2,x0=np.array([0.01,0.01]), args=(tree,qmats,ss), method="Powell")
+        print("mfc rates",[float(i) for i in res_tr.x])
+        print(res_tr)
         qmats = qmat.Qmat(res_tr.x[0],res_tr.x[1])
         mfc.compute_mfc2_ASRs(tree,qmats,ss) 
         #print(tree.timeslice_lv[0][1])

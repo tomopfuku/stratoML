@@ -366,7 +366,7 @@ def calc_midpoint_ll_single_trait(node.Node n, double[:, :] pmat, int cur_k, int
         last_like = missing_trait_vec(cur_k)
     else:
         last_like = n.timeslice_lv[n.midpoint_lv_index-1][chari]
-
+    
     for i in range(len(n.disc_traits[chari])):
         tr_prob = n.disc_traits[chari][i]
         if tr_prob == 0.0:
@@ -379,6 +379,7 @@ def calc_midpoint_ll_single_trait(node.Node n, double[:, :] pmat, int cur_k, int
             cond_prob = pmat[i][j]
             cond_prob *= last_like_val
             marg_prob += cond_prob
+
         n.timeslice_lv[n.midpoint_lv_index][chari][i] = marg_prob
     n.scaling_factors[n.midpoint_lv_index][chari] = max(n.timeslice_lv[n.midpoint_lv_index][chari]) # update scaling factor vector
     n.timeslice_lv[n.midpoint_lv_index][chari] = max_scale_timeslice(n.timeslice_lv[n.midpoint_lv_index][chari])
@@ -423,11 +424,15 @@ cdef budd_loglike_single_trait_marg(node.Node n, node.Node ch, double[:,:] p1, d
             scen_cond_like = 0.0
             for k in range(len(chd_tr)):
                 traitprob = chd_tr[k]
+                #print("TRAITPROB",traitprob)
+
+                #print("PMATVAL",p1[startst][k])
                 if k == int(2) ** cur_k: # NEED TO FIX
                     break
                 if traitprob == 0.0:
                     continue
                 scen_cond_like += p1[startst][k] * traitprob
+            #print("SUBLIKES:", ana_cond_like, scen_cond_like)
             scenario_like = ana_cond_like * scen_cond_like 
             
             scenario_like *= weight
@@ -461,6 +466,17 @@ cdef budd_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
             dt = n.midpoint - prev_time
             pmats1 = qmats.calc_p_mats(dt)
             calc_midpoint_ll(n, pmats1, ss) # need to compute the likelihood at the midpoint if we've hit the first child beyond the midpoint
+            """
+            if n.label == "Copelemur_australotutus":
+                #print(n.label,"disc traits")
+                #print(list(n.disc_traits[chari]))
+                print(n.label, "MIDPOINT",n.midpoint_lv_index)
+                print("CURMID:",n.midpoint)
+                print(n.children[0].label, "DESCLOWER:",n.children[0].lower)
+                print(n.children[0].label, n.children[0].parent_lv_index)
+                print(list(n.timeslice_lv[n.midpoint_lv_index][chari]))
+                exit()
+            """
             past_mid = True
             prev_time = n.midpoint
 
@@ -493,6 +509,7 @@ cdef budd_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
             dt = n.midpoint - prev_time
             pmats1 = qmats.calc_p_mats(dt)
             calc_midpoint_ll(n, pmats1, ss) # need to compute the likelihood at the midpoint if we've hit the first child beyond the midpoint
+
             past_mid = True
             prev_time = n.midpoint
 
@@ -1419,25 +1436,18 @@ cdef double budd_loglike_single_trait(node.Node n, int cur_k, int chari, double 
     cur_scen = bm.get_buddmat(cur_k)
     par_tr = n.disc_traits[chari]
     mis = check_mis(par_tr)
-    #if mis:
-    #    for i in range(len(par_tr)):
-    #        par_tr[i] = 0.0
     for chd_i in range(len(n.children)):
         p1 = n.children[chd_i].pmats[cur_k-2] #calc_p_matrix(cur_q,n.children[0].length)
         chd_tr = n.children[chd_i].disc_traits[chari]            
         
         if mis == True: # parent is missing trait
             allstprob = 0.0
-            #if n.label == "Micraster_carentonensis" or n.label == "Micraster_laxoporus":
-            #    print(n.children[chd_i].label,list(chd_tr))
             for i in range(1,len(cur_scen)):
                 inher = cur_scen[i]
                 nscen = count_nscenarios(inher)
                 weight = 1.0 / ( float(nscen) * float(len(cur_scen)-1) )
 
                 stateprob = p_over_desc(inher, chd_tr, p1, weight)
-                #par_tr[i] += stateprob * desc_weight
-                #print(i, stateprob,weight)
                 allstprob += stateprob
         elif mis == False:
             for i in range(len(par_tr)): # i == character state in parent state vector
@@ -1446,15 +1456,8 @@ cdef double budd_loglike_single_trait(node.Node n, int cur_k, int chari, double 
                     nscen = count_nscenarios(inher)
                     weight = 1.0 / float(nscen)
                     allstprob = p_over_desc(inher, chd_tr, p1, weight)
-                    #traitlike += stateprob
-        #if n.children[chd_i].label == "Micraster_quebrada":
-            #print(n.children[chd_i].label,np.log(allstprob))
         traitll += np.log(allstprob)
        
-    #   #if mis:
-    #       #print(par_tr)
-    #       #print(cur_k,list(n.disc_traits[chari]))
-    #        #print(sum(n.disc_traits[chari]))
     return traitll
 
 

@@ -39,17 +39,18 @@ def init_budd_marginals(tree, ntrait, ss):
         n.timeslice_lv = np.array(all_lv)
         n.scaling_factors = np.array(all_sf)
 
+        all_marg = []
         if n.istip:
             n_ts = len(n.children)
             if n_ts < 1:
                 #n.timeslice_lv[0] = n.disc_traits  # set the likelihood vectors for tips to be the trait states
                 continue
-            all_marg = []
             for i in range(n_ts):
                 all_marg.append(one_marg)
             
             n.budd_marginals = np.array(all_marg)
-
+        else:
+            n.budd_marginals = all_marg.append(one_marg)
             #print("HERE",len(n.budd_marginals),n_ts,len(n.budd_marginals[0]))
             #for i in list(n.budd_marginals):
             #    for j in list(i):
@@ -397,7 +398,7 @@ def random_spr(tree):
     regraft_subtree(pluck_node,regraft_node)
     return pluck_node,prev_par,sib
 
-def calc_tree_ll2(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.0002]):
+def calc_tree_ll2(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.1]):
     stratlike.calibrate_brlens_strat(tree,0.2)
     #qmats = qmat.Qmat(0.01,0.05)
     sort_children_by_age(tree)
@@ -411,7 +412,7 @@ def calc_tree_ll2(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.000
         r = res.x[2]
         stratlike.bds_dates(p,q,r,tree)
         bdsll = stratlike.bds_loglike(p,q,r,tree)
-        res_tr = minimize(mfc.evaluate_m_l2,x0=np.array(starting_mfc_rates),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,0.2),(0.00001,0.2)))
+        res_tr = minimize(mfc.evaluate_m_l2,x0=np.array(starting_mfc_rates),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,5.0),(0.00001,5.0)))
         traitll = -res_tr.fun
         tree_ll = traitll + bdsll
         nparam = 3.0 + 2.0
@@ -420,7 +421,7 @@ def calc_tree_ll2(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.000
         #for n in tree.iternodes():
         #    print(n.label,n.lower,n.upper)
         bdsll = -res_st.fun
-        res_tr = minimize(mfc.evaluate_m_l2,x0=np.array(starting_mfc_rates),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,0.2),(0.00001,0.2)))
+        res_tr = minimize(mfc.evaluate_m_l2,x0=np.array(starting_mfc_rates),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,5.0),(0.00001,5.0)))
 
         #print(res_tr.x)
         traitll = -res_tr.fun
@@ -864,7 +865,7 @@ def sort_children_by_age(tree):
                     #print(ch.label,ch.lower,n.children[i-1].label,n.children[i-1].lower)
                     simul = True
                 ch.index_from_parent = i
-                if round(ch.lower,4) == round(n.midpoint,4):
+                if round(ch.lower, 4) == round(n.midpoint,4):
                     diff = round(last - ch.lower,3)
                     n.midpoint += round((diff / 6.),3) # if midpoint is the same as a budding point, move the midpoint slightly back toward the last budding point or the start of the lineage
                     #simul = True
@@ -880,9 +881,17 @@ def sort_children_by_age(tree):
                 last = ch.lower 
                 
             n.midpoint_lv_index = m
+            """
+            if n.label == "Copelemur_australotutus":
+                print("SORT_CHLD FUNCT")
+                print(n.label, "MIDPOINT",n.midpoint_lv_index)
+                print("CURMID:",n.midpoint)
+                print(n.children[0].label, "DESCLOWER:",n.children[0].lower)
+                print(n.children[0].parent_lv_index)
             if simul == True and n.istip:
                 stagger_simul_branchings(n)
             #print(n.label,"MIDPOINT INDEX",n.midpoint_lv_index,n.midpoint)
+            """
         else:
             for ch in n.children:
                 ch.parent_lv_index = 0
