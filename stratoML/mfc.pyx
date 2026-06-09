@@ -54,12 +54,13 @@ def calc_p_matrix(double[:,:] ratemat, double t):
 cdef double split_loglike_single_trait_marg(node.Node n, double[:, :] p1, double[:, :] p2, int cur_k, int chari):
     cdef double traitprob, curp1, curp2, anclike, weight, dt
     cdef long[:] spltanc 
-    cdef int ti, tj, anc1, anc2, traitprob_i, nscenarios, count
+    cdef int ti, tj, anc1, anc2, traitprob_i, nscenarios, count, nstates
     cdef double[:] ch1_tr,ch2_tr
     cdef long[:,:,:] cur_scen
     cdef node.Node ch
 
     cur_scen = sm.get_spltmat(cur_k)
+    nstates = 1 << cur_k
     ch = n.children[0]
     ch1_tr = ch.timeslice_lv[-1][chari]
 
@@ -86,7 +87,7 @@ cdef double split_loglike_single_trait_marg(node.Node n, double[:, :] p1, double
             count += 1
             anc1 = spltanc[0]
             curp1 = 0.0
-            for traitprob_i in range(len(ch1_tr)):
+            for traitprob_i in range(nstates):
                 traitprob = ch1_tr[traitprob_i]
                 if traitprob == 0.0:
                     continue
@@ -94,7 +95,7 @@ cdef double split_loglike_single_trait_marg(node.Node n, double[:, :] p1, double
 
             anc2 = spltanc[1]
             curp2 = 0.0
-            for traitprob_i in range(len(ch2_tr)):
+            for traitprob_i in range(nstates):
                 traitprob = ch2_tr[traitprob_i]
                 if traitprob == 0.0:
                     continue
@@ -102,12 +103,7 @@ cdef double split_loglike_single_trait_marg(node.Node n, double[:, :] p1, double
             anclike += (curp1 * curp2) * weight
         n.timeslice_lv[0][chari][ti] = anclike
     if n.parent != None:
-        n.scaling_factors[0][chari] = max(n.timeslice_lv[0][chari]) # update scaling factor vector
-        try:
-            n.timeslice_lv[0][chari] = max_scale_timeslice(n.timeslice_lv[0][chari])
-        except:
-            print("ERROR SCALING LIKELIHOOD VECTOR in `mfc.split_loglike_single_trait_marg()`")
-            sys.exit()
+        n.scaling_factors[0][chari] = scale_vec_inplace(n.timeslice_lv[0][chari], nstates)
 
 cdef double split_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
     cdef double nodelike, charll, dt, dt1, dt2
@@ -164,13 +160,39 @@ def max_scale_lv(node.Node n):
 cpdef double[:] max_scale_timeslice(double[:] anc_marg):
     cdef double[:] scaled_anc_marg
     cdef int i
+    cdef double max_val = 0.0
 
     #print("IN MAX SCSALE TIMESLICE", list(anc_marg))
     scaled_anc_marg = np.zeros(len(anc_marg))
     for i in range(len(anc_marg)):
-        scaled_anc_marg[i] = anc_marg[i] / max(anc_marg)
+        if anc_marg[i] > max_val:
+            max_val = anc_marg[i]
+    if max_val == 0.0:
+        return scaled_anc_marg
+    for i in range(len(anc_marg)):
+        scaled_anc_marg[i] = anc_marg[i] / max_val
 
     return scaled_anc_marg
+
+cdef inline double scale_vec_inplace(double[:] vec, int nstates):
+    cdef int i
+    cdef double max_val = 0.0
+
+    for i in range(nstates):
+        if vec[i] > max_val:
+            max_val = vec[i]
+
+    if max_val == 0.0:
+        for i in range(vec.shape[0]):
+            vec[i] = 0.0
+        return max_val
+
+    for i in range(vec.shape[0]):
+        if i < nstates:
+            vec[i] = vec[i] / max_val
+        else:
+            vec[i] = 0.0
+    return max_val
 
 cpdef bint check_mis(double[:] tr_vec):
     cdef bint mis
@@ -383,28 +405,34 @@ def calc_midpoint_ll(node.Node n, qmat.Qmat qmats, double dt, long[:] ss):
 def calc_midpoint_ll_single_trait(node.Node n, double[:, :] pmat, int cur_k, int chari):
     #cdef double[:,:] pmat
     cdef double[:] last_like#, all_marg
-    cdef int i, j #, chari, curk
+    cdef int i, j, nstates #, chari, curk
     cdef double tr_prob, last_like_val, cond_prob, marg_prob 
+    cdef bint missing_last
+    nstates = 1 << cur_k
     if n.midpoint_lv_index == 0:
-        last_like = missing_trait_vec(cur_k)
+        missing_last = True
     else:
+        missing_last = False
         last_like = n.timeslice_lv[n.midpoint_lv_index-1][chari]
 
-    for i in range(len(n.disc_traits[chari])):
+    for i in range(nstates):
         tr_prob = n.disc_traits[chari][i]
         if tr_prob == 0.0:
             continue
         marg_prob = 0.0
-        for j in range(len(last_like)):
-            last_like_val = last_like[j]
-            if last_like_val == 0.0:
-                continue
-            cond_prob = pmat[i][j]
-            cond_prob *= last_like_val
-            marg_prob += cond_prob
+        if missing_last:
+            for j in range(1, nstates):
+                marg_prob += pmat[i][j]
+        else:
+            for j in range(nstates):
+                last_like_val = last_like[j]
+                if last_like_val == 0.0:
+                    continue
+                cond_prob = pmat[i][j]
+                cond_prob *= last_like_val
+                marg_prob += cond_prob
         n.timeslice_lv[n.midpoint_lv_index][chari][i] = marg_prob
-    n.scaling_factors[n.midpoint_lv_index][chari] = max(n.timeslice_lv[n.midpoint_lv_index][chari]) # update scaling factor vector
-    n.timeslice_lv[n.midpoint_lv_index][chari] = max_scale_timeslice(n.timeslice_lv[n.midpoint_lv_index][chari])
+    n.scaling_factors[n.midpoint_lv_index][chari] = scale_vec_inplace(n.timeslice_lv[n.midpoint_lv_index][chari], nstates)
 
 cdef budd_loglike_single_trait_marg(node.Node n, node.Node ch, double[:,:] p1, double[:,:] p2, int cur_k, int chari): #, double desc_weight):
     cdef double scen_cond_like,scenario_like, ana_cond_like, weight, ana_prob, marg_prob, dt, traitll, stateprob, traitprob, prev_time, allstprob = 0.0
@@ -412,31 +440,38 @@ cdef budd_loglike_single_trait_marg(node.Node n, node.Node ch, double[:,:] p1, d
     cdef double[:] chd_tr, par_tr, ana_tr, anc_marg, miss_tr
     cdef long[:,:] cur_scen
     cdef long[:] inher, ancsts
-    cdef int lv_i, chd_i, i, nscen, j, ancst, startst, k, l, maxstates
+    cdef int lv_i, chd_i, i, nscen, j, ancst, startst, k, l, maxstates, nstates
+    cdef bint missing_ana
     
+    nstates = 1 << cur_k
     if ch.parent_lv_index == 0:
-        ana_tr = missing_trait_vec(cur_k)
+        missing_ana = True
     else:
+        missing_ana = False
         ana_tr = n.timeslice_lv[ch.parent_lv_index - 1][chari]
 
     chd_tr = ch.timeslice_lv[-1][chari] 
     cur_scen = bm.get_buddmat(cur_k)
  
     allstprob = 0.0
-    ancsts = np.array([i for i in range(1,len(cur_scen))])
-
-    anc_marg = np.zeros(len(ancsts)+1)
-    for ancst in ancsts:
+    anc_marg = n.timeslice_lv[ch.parent_lv_index][chari]
+    for ancst in range(nstates):
+        anc_marg[ancst] = 0.0
+    for ancst in range(1, nstates):
         inher = cur_scen[ancst]
         nscen = count_nscenarios(inher)
         weight = 1.0 / ( float(nscen) * float(len(cur_scen)-1) )
         marg_prob = 0.0
         ana_cond_like = 0.0
-        for l in range(len(ana_tr)):
-            ana_prob = ana_tr[l]
-            if ana_prob == 0.0:
-                continue
-            ana_cond_like += p2[ancst][l] * ana_prob
+        if missing_ana:
+            for l in range(1, nstates):
+                ana_cond_like += p2[ancst][l]
+        else:
+            for l in range(nstates):
+                ana_prob = ana_tr[l]
+                if ana_prob == 0.0:
+                    continue
+                ana_cond_like += p2[ancst][l] * ana_prob
 
         for j in range(len(inher)): # calc cond like for each allowed inheritance scen
             startst = inher[j]
@@ -444,10 +479,8 @@ cdef budd_loglike_single_trait_marg(node.Node n, node.Node ch, double[:,:] p1, d
                 break
 
             scen_cond_like = 0.0
-            for k in range(len(chd_tr)):
+            for k in range(nstates):
                 traitprob = chd_tr[k]
-                if k == int(2) ** cur_k: # NEED TO FIX
-                    break
                 if traitprob == 0.0:
                     continue
                 scen_cond_like += p1[startst][k] * traitprob
@@ -456,16 +489,7 @@ cdef budd_loglike_single_trait_marg(node.Node n, node.Node ch, double[:,:] p1, d
             scenario_like *= weight
             marg_prob += scenario_like
         anc_marg[ancst] = marg_prob 
-    n.scaling_factors[ch.parent_lv_index][chari] = max(anc_marg) # update scaling factor vector
-    
-    try:
-        anc_marg = max_scale_timeslice(anc_marg)
-    except:
-        print("ERROR RESCALING LIKELIHOOD VECTOR `budd_loglike_single_trait_marg()")
-        sys.exit()
-
-    for j in range(len(anc_marg)):
-        n.timeslice_lv[ch.parent_lv_index][chari][j] = anc_marg[j] 
+    n.scaling_factors[ch.parent_lv_index][chari] = scale_vec_inplace(anc_marg, nstates)
 
 
 cdef budd_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
@@ -562,9 +586,10 @@ def calc_bud_root_ll_single_trait(node.Node tree, qmat.Qmat qmats, int cur_k, in
     cdef double[:] chd_tr, anc_marg
     cdef long[:,:] cur_scen
     cdef long[:] inher, ancsts
-    cdef int  nscen, j, ancst, startst, k
+    cdef int  nscen, j, ancst, startst, k, nstates
 
     cur_scen = bm.get_buddmat(cur_k)
+    nstates = 1 << cur_k
 
     if tree.midpoint_lv_index != len(tree.children):
         dt = tree.lower - tree.children[0].lower
@@ -576,9 +601,8 @@ def calc_bud_root_ll_single_trait(node.Node tree, qmat.Qmat qmats, int cur_k, in
 
     chd_tr = tree.timeslice_lv[-1][chari] 
     #print(list(chd_tr))
-    ancsts = np.array([i for i in range(1,len(cur_scen))])
-    anc_marg = np.zeros(len(ancsts)+1)
-    for ancst in ancsts:
+    anc_marg = np.zeros(nstates)
+    for ancst in range(1, nstates):
         inher = cur_scen[ancst]
         #print(ancst,list(inher))
         nscen = count_nscenarios(inher)
@@ -592,10 +616,8 @@ def calc_bud_root_ll_single_trait(node.Node tree, qmat.Qmat qmats, int cur_k, in
             #scenario_like = 0.0 # marginal likelihood of one scenario, marginalized over all combinations of anagenetic transitions and budded descendant states
 
             scen_cond_like = 0.0
-            for k in range(len(chd_tr)):
+            for k in range(nstates):
                 traitprob = chd_tr[k]
-                if k == int(2) ** cur_k: # NEED TO FIX
-                    break
                 if traitprob == 0.0:
                     continue
                 scen_cond_like += pmat[startst][k] * traitprob
@@ -647,7 +669,7 @@ def mfc2_treell(node.Node tree, qmat.Qmat qmats, long[:] ss, bint asc = True):
     cdef double treell, asc_treell, plike, flat_prior, invarll, sum_plikes, sublike
     cdef double[:,:] root_marg_likes
     cdef double[:] plikes, sum_log_sf
-    cdef int i, j, k, count
+    cdef int i, j, k, count, nstates
     cdef node.Node n
 
     treell = 0.0
@@ -672,17 +694,15 @@ def mfc2_treell(node.Node tree, qmat.Qmat qmats, long[:] ss, bint asc = True):
         if ss[i] == 1: # invariant traits do not contribute to the tree likelihood bc we use ascertainment bias correction
             continue
         plikes = root_marg_likes[i]
-        sum_plikes = sum(plikes)
+        nstates = 1 << ss[i]
+        sum_plikes = 0.0
+        for j in range(nstates):
+            sum_plikes += plikes[j]
         sublike = 0.0
         #print("PLIKES",list(plikes)[0:8])
-        count = 0
-        
-        for j in range(len(plikes)):
-            if j > 0.0:
-                count+=1
-        
+
         #flat_prior = 1.0 / float(count)
-        for j in range(len(plikes)):
+        for j in range(nstates):
             plike = plikes[j]
             sublike += plike * (plike / sum_plikes) #flat_prior 
         #print(i, np.log(sublike), np.log(sublike) + sum_log_sf[i], np.exp(np.log(sublike) + sum_log_sf[i]))
@@ -1129,7 +1149,7 @@ cdef double calc_invar_ll_marg(node.Node tree, qmat.Qmat qmats):
     cdef double desc_weight, nodell, sum_log_sf, sublike, sum_plikes, plike
     cdef double[:] plikes
     cdef node.Node n
-    cdef int i, j, count
+    cdef int i, j, count, nstates
     cdef double [:, :, :] pmats1, pmats2
 
     """
@@ -1160,14 +1180,13 @@ cdef double calc_invar_ll_marg(node.Node tree, qmat.Qmat qmats):
         for i in range(len(n.scaling_factors)):
             sum_log_sf += np.log(n.scaling_factors[i][0])
         
-    sum_plikes = sum(plikes)
+    nstates = 1 << 2
+    sum_plikes = 0.0
+    for j in range(nstates):
+        sum_plikes += plikes[j]
     sublike = 0.0
-    count = 0
-    for j in range(len(plikes)):
-        if plikes[j] > 0.0:
-            count+=1
 
-    for j in range(len(plikes)):
+    for j in range(nstates):
         plike = plikes[j]
         sublike += plike * (plike / sum_plikes) #1.0 / count 
 
@@ -1203,6 +1222,17 @@ def evaluate_m_l2(double[:] params, node.Node tree, qmat.Qmat qmats,long[:] ss):
     qmats.update_all_qmats(params[0],params[1]) 
 
     tree_utils.sort_children_by_age(tree)
+    treell = mfc2_treell(tree, qmats, ss)
+    return -treell
+
+
+def evaluate_m_l2_sorted(double[:] params, node.Node tree, qmat.Qmat qmats,long[:] ss):
+    cdef double treell
+
+    if params[0] < 0.0001 or params[1] < 0.0001:
+        return 10000000000
+
+    qmats.update_all_qmats(params[0], params[1])
     treell = mfc2_treell(tree, qmats, ss)
     return -treell
 

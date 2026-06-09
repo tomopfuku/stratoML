@@ -4,6 +4,7 @@ import random
 import stratlike
 import node
 from scipy.optimize import minimize
+from scipy.optimize import minimize_scalar
 from scipy.optimize import basinhopping 
 import mfc
 import qmat
@@ -401,6 +402,7 @@ def random_spr(tree):
 
 def calc_tree_ll2(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.1]):
     stratlike.calibrate_brlens_strat(tree,0.2)
+    start_rates = np.asarray(starting_mfc_rates, dtype=np.float64)
     #qmats = qmat.Qmat(0.01,0.05)
     #sort_children_by_age(tree)
     #init_budd_marginals(tree, len(ss), ss)
@@ -409,35 +411,96 @@ def calc_tree_ll2(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.1])
     #fix_obs_lv(tree)
     if tree_model == "bds":
         pqr_start = np.array([0.5,0.5,1.0])
-        res = basinhopping(stratlike.bds_neg_ll,x0=pqr_start,niter=5,minimizer_kwargs={"method":"L-BFGS-B","args":(tree),"bounds":((0.00001,10),(0.00001,10),(0.00001,20))})
+        res = basinhopping(stratlike.bds_neg_ll,x0=pqr_start,niter=5,minimizer_kwargs={"method":"L-BFGS-B","args":(tree,),"bounds":((0.00001,10),(0.00001,10),(0.00001,20))})
         p = res.x[0]
         q = res.x[1]
         r = res.x[2]
         stratlike.bds_dates(p,q,r,tree)
         bdsll = stratlike.bds_loglike(p,q,r,tree)
-        res_tr = minimize(mfc.evaluate_m_l2,x0=np.array(starting_mfc_rates),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,5.0),(0.00001,5.0)))
+        sort_children_by_age(tree)
+        res_tr = minimize(mfc.evaluate_m_l2_sorted,x0=start_rates,args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,5.0),(0.00001,5.0)))
         traitll = -res_tr.fun
         tree_ll = traitll + bdsll
         nparam = 3.0 + 2.0
     elif tree_model == "hr97":
-        res_st = minimize(stratlike.poisson_neg_ll,x0=np.array([1.0]),args=(tree),method="Nelder-Mead")
+        res_st = minimize_scalar(stratlike.poisson_neg_ll,bounds=(0.000001,100.0),args=(tree,),method="bounded")
         #for n in tree.iternodes():
         #    print(n.label,n.lower,n.upper)
         bdsll = -res_st.fun
-        res_tr = minimize(mfc.evaluate_m_l2,x0=np.array(starting_mfc_rates),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,5.0),(0.00001,5.0)))
+        sort_children_by_age(tree)
+        res_tr = minimize(mfc.evaluate_m_l2_sorted,x0=start_rates,args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,5.0),(0.00001,5.0)))
 
         #print(res_tr.x)
         traitll = -res_tr.fun
-        print(res_tr.x)
         tree_ll = traitll + bdsll
         nparam = 1.0 + 2.0
     else:
         print("stratigraphic range model not recognized. please type either \"bds\" or \"hr97\"")
         sys.exit()
 
-    nparam += float(len([n for n in tree.iternodes()]) - 1)
+    nparam += float(sum(1 for _ in tree.iternodes()) - 1)
     aic = (2. * nparam) - (2. * tree_ll) 
 
+    return aic,traitll,bdsll
+
+def _count_tree_params(tree):
+    return float(sum(1 for _ in tree.iternodes()) - 1)
+
+def _prepare_tree_for_mfc2(tree, ss):
+    sort_children_by_age(tree)
+    init_budd_marginals(tree, len(ss), ss)
+    fix_obs_lv(tree)
+
+def calc_tree_ll2_with_rates(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.1]):
+    stratlike.calibrate_brlens_strat(tree,0.2)
+    start_rates = np.asarray(starting_mfc_rates, dtype=np.float64)
+
+    if tree_model == "bds":
+        pqr_start = np.array([0.5,0.5,1.0])
+        res = basinhopping(stratlike.bds_neg_ll,x0=pqr_start,niter=5,minimizer_kwargs={"method":"L-BFGS-B","args":(tree,),"bounds":((0.00001,10),(0.00001,10),(0.00001,20))})
+        strat_params = np.asarray(res.x, dtype=np.float64)
+        stratlike.bds_dates(strat_params[0],strat_params[1],strat_params[2],tree)
+        bdsll = stratlike.bds_loglike(strat_params[0],strat_params[1],strat_params[2],tree)
+        sort_children_by_age(tree)
+        res_tr = minimize(mfc.evaluate_m_l2_sorted,x0=start_rates,args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,5.0),(0.00001,5.0)))
+        nparam = 3.0 + 2.0
+    elif tree_model == "hr97":
+        res_st = minimize_scalar(stratlike.poisson_neg_ll,bounds=(0.000001,100.0),args=(tree,),method="bounded")
+        strat_params = np.asarray([res_st.x], dtype=np.float64)
+        bdsll = -res_st.fun
+        sort_children_by_age(tree)
+        res_tr = minimize(mfc.evaluate_m_l2_sorted,x0=start_rates,args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,5.0),(0.00001,5.0)))
+        nparam = 1.0 + 2.0
+    else:
+        print("stratigraphic range model not recognized. please type either \"bds\" or \"hr97\"")
+        sys.exit()
+
+    mfc_rates = np.asarray(res_tr.x, dtype=np.float64)
+    traitll = -res_tr.fun
+    tree_ll = traitll + bdsll
+    nparam += _count_tree_params(tree)
+    aic = (2. * nparam) - (2. * tree_ll)
+    return aic,traitll,bdsll,mfc_rates,strat_params
+
+def calc_tree_ll2_fixed_rates(tree,qmats,ss,tree_model,mfc_rates,strat_params):
+    if tree_model == "bds":
+        stratlike.bds_dates(strat_params[0],strat_params[1],strat_params[2],tree)
+        bdsll = stratlike.bds_loglike(strat_params[0],strat_params[1],strat_params[2],tree)
+        nparam = 3.0 + 2.0
+    elif tree_model == "hr97":
+        stratlike.calibrate_brlens_strat(tree,0.2)
+        bdsll = stratlike.poisson_loglike(strat_params[0],tree)
+        nparam = 1.0 + 2.0
+    else:
+        print("stratigraphic range model not recognized. please type either \"bds\" or \"hr97\"")
+        sys.exit()
+
+    _prepare_tree_for_mfc2(tree, ss)
+    qmats.update_all_qmats(mfc_rates[0],mfc_rates[1])
+    traitll = mfc.mfc2_treell(tree,qmats,ss)
+    tree_ll = traitll + bdsll
+    nparam += _count_tree_params(tree)
+    aic = (2. * nparam) - (2. * tree_ll)
     return aic,traitll,bdsll
 
 def calc_tree_ll3(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.1]):
@@ -607,6 +670,251 @@ def tree_search3(tree,ss,qmats,tree_mod="bds",anc_start=False):
     print("BEST",bestaic,besttree)
     outfl.close()
     return besttree, bestaic
+
+def _restore_pruned_descendant(pluck_node, prev_par, sib, spare_hyp_anc=None):
+    if sib:
+        pluck_node.parent = spare_hyp_anc
+        regraft_bif_subtree(pluck_node,sib)
+    else:
+        regraft_AD_subtree(pluck_node,prev_par)
+
+def topology_signature(tree, tipdic=None):
+    if tipdic is None:
+        tipdic = bp.get_tip_indices(tree)
+    biparts = bp.decompose_tree(tree,tipdic)
+    ad_pairs = []
+    for n in tree.iternodes():
+        if not n.istip or len(n.children) == 0:
+            continue
+        for ch in n.children:
+            desc_tips = tuple(sorted(nn.label for nn in ch.iternodes() if nn.istip))
+            ad_pairs.append((n.label,desc_tips))
+    return (biparts,frozenset(ad_pairs))
+
+def find_new_ancestor4(tree,qmats,ss,startaic,mfc_rates,strat_params,tree_mod="bds",max_candidates=12,full_evals=2,seen_topologies=None,tipdic=None):
+    descnodes = find_all_possible_descendant_nodes(tree)
+    if len(descnodes) == 0:
+        return False,startaic,mfc_rates,strat_params
+
+    pluck_node = choose_descnode(descnodes)
+    orig_lower = pluck_node.lower
+    pluck_node.lower = pluck_node.strat[0]
+    spare_hyp_anc = pluck_node.parent if len(pluck_node.parent.children) == 2 else None
+    prev_par, sib = prune_subtree(pluck_node)
+    nodes = get_possible_ancestors(pluck_node,tree)
+
+    if len(nodes) == 0:
+        _restore_pruned_descendant(pluck_node,prev_par,sib,spare_hyp_anc)
+        pluck_node.lower = orig_lower
+        _prepare_tree_for_mfc2(tree,ss)
+        return False,startaic,mfc_rates,strat_params
+
+    if max_candidates is not None and len(nodes) > max_candidates:
+        nodes = random.sample(nodes,max_candidates)
+
+    screened = []
+    local_seen = set()
+    for regraft_node in nodes:
+        regraft_AD_subtree(pluck_node,regraft_node)
+        sig = topology_signature(tree,tipdic)
+        if sig in local_seen or (seen_topologies is not None and sig in seen_topologies):
+            prune_subtree(pluck_node)
+            continue
+        local_seen.add(sig)
+        curaic,_,_ = calc_tree_ll2_fixed_rates(tree,qmats,ss,tree_mod,mfc_rates,strat_params)
+        prune_subtree(pluck_node)
+        screened.append((curaic,regraft_node,sig))
+
+    if len(screened) == 0:
+        _restore_pruned_descendant(pluck_node,prev_par,sib,spare_hyp_anc)
+        pluck_node.lower = orig_lower
+        _prepare_tree_for_mfc2(tree,ss)
+        return False,startaic,mfc_rates,strat_params
+
+    screened.sort(key=lambda x: x[0])
+    full_evals = max(1,min(full_evals,len(screened)))
+
+    best_full = (startaic,None,None,None,None)
+    for _, regraft_node, sig in screened[:full_evals]:
+        regraft_AD_subtree(pluck_node,regraft_node)
+        _prepare_tree_for_mfc2(tree,ss)
+        curaic,_,_,cur_mfc_rates,cur_strat_params = calc_tree_ll2_with_rates(
+            tree,qmats,ss,tree_mod,mfc_rates
+        )
+        prune_subtree(pluck_node)
+        if curaic < best_full[0]:
+            best_full = (curaic,regraft_node,cur_mfc_rates,cur_strat_params,sig)
+
+    changed = False
+    if best_full[1] is not None and best_full[0] < startaic:
+        regraft_AD_subtree(pluck_node,best_full[1])
+        _prepare_tree_for_mfc2(tree,ss)
+        changed = True
+        return changed,best_full[0],best_full[2],best_full[3]
+
+    _restore_pruned_descendant(pluck_node,prev_par,sib,spare_hyp_anc)
+    pluck_node.lower = orig_lower
+    _prepare_tree_for_mfc2(tree,ss)
+    return changed,startaic,mfc_rates,strat_params
+
+def _node_time_state(n):
+    return (n.lower,n.upper,n.length,n.midpoint,n.parent_lv_index,n.midpoint_lv_index,n.index_from_parent)
+
+def _restore_node_time_state(n, state):
+    n.lower = state[0]
+    n.upper = state[1]
+    n.length = state[2]
+    n.midpoint = state[3]
+    n.parent_lv_index = state[4]
+    n.midpoint_lv_index = state[5]
+    n.index_from_parent = state[6]
+
+def _restore_bifurcated_ad(descendant, ancestor, hyp_anc, descendant_state=None, ancestor_state=None):
+    if descendant in hyp_anc.children:
+        hyp_anc.children.remove(descendant)
+    if ancestor in hyp_anc.children:
+        hyp_anc.children.remove(ancestor)
+
+    ancestor.children.append(descendant)
+    descendant.parent = ancestor
+
+    if hyp_anc.parent is not None:
+        hyp_anc.parent.children.append(ancestor)
+        hyp_anc.parent.children.remove(hyp_anc)
+        ancestor.parent = hyp_anc.parent
+    else:
+        ancestor.parent = None
+    hyp_anc.parent = None
+    if descendant_state is not None:
+        _restore_node_time_state(descendant,descendant_state)
+    if ancestor_state is not None:
+        _restore_node_time_state(ancestor,ancestor_state)
+
+def find_bifurcate_ad4(tree,qmats,ss,startaic,mfc_rates,strat_params,tree_mod="bds",max_candidates=12,full_evals=2,seen_topologies=None,tipdic=None):
+    candidates = [n for n in tree.iternodes() if n.istip and n.parent is not None and n.parent.istip]
+    if len(candidates) == 0:
+        return False,startaic,mfc_rates,strat_params
+    if max_candidates is not None and len(candidates) > max_candidates:
+        candidates = random.sample(candidates,max_candidates)
+
+    screened = []
+    local_seen = set()
+    for desc in candidates:
+        ancestor = desc.parent
+        desc_state = _node_time_state(desc)
+        ancestor_state = _node_time_state(ancestor)
+        make_bifurcating(desc)
+        hyp_anc = desc.parent
+        sig = topology_signature(tree,tipdic)
+        if sig in local_seen or (seen_topologies is not None and sig in seen_topologies):
+            _restore_bifurcated_ad(desc,ancestor,hyp_anc,desc_state,ancestor_state)
+            continue
+        local_seen.add(sig)
+        curaic,_,_ = calc_tree_ll2_fixed_rates(tree,qmats,ss,tree_mod,mfc_rates,strat_params)
+        _restore_bifurcated_ad(desc,ancestor,hyp_anc,desc_state,ancestor_state)
+        screened.append((curaic,desc,sig))
+
+    if len(screened) == 0:
+        _prepare_tree_for_mfc2(tree,ss)
+        return False,startaic,mfc_rates,strat_params
+
+    screened.sort(key=lambda x: x[0])
+    full_evals = max(1,min(full_evals,len(screened)))
+
+    best_full = (startaic,None,None,None,None)
+    for _, desc, sig in screened[:full_evals]:
+        ancestor = desc.parent
+        desc_state = _node_time_state(desc)
+        ancestor_state = _node_time_state(ancestor)
+        make_bifurcating(desc)
+        hyp_anc = desc.parent
+        _prepare_tree_for_mfc2(tree,ss)
+        curaic,_,_,cur_mfc_rates,cur_strat_params = calc_tree_ll2_with_rates(
+            tree,qmats,ss,tree_mod,mfc_rates
+        )
+        _restore_bifurcated_ad(desc,ancestor,hyp_anc,desc_state,ancestor_state)
+        if curaic < best_full[0]:
+            best_full = (curaic,desc,cur_mfc_rates,cur_strat_params,sig)
+
+    if best_full[1] is not None and best_full[0] < startaic:
+        desc = best_full[1]
+        make_bifurcating(desc)
+        _prepare_tree_for_mfc2(tree,ss)
+        return True,best_full[0],best_full[2],best_full[3]
+
+    _prepare_tree_for_mfc2(tree,ss)
+    return False,startaic,mfc_rates,strat_params
+
+def find_global_ancestor4(tree,qmats,ss,startaic,mfc_rates,strat_params,tree_mod="bds",max_candidates=24,full_evals=3,seen_topologies=None,tipdic=None,attempts=3):
+    best = (False,startaic,mfc_rates,strat_params)
+    for _ in range(attempts):
+        changed,curaic,cur_mfc_rates,cur_strat_params = find_new_ancestor4(
+            tree,qmats,ss,best[1],best[2],best[3],tree_mod,max_candidates,full_evals,seen_topologies,tipdic
+        )
+        if changed and curaic < best[1]:
+            best = (changed,curaic,cur_mfc_rates,cur_strat_params)
+    return best
+
+def tree_search4(tree,ss,qmats,tree_mod="bds",anc_start=False,max_iter=1000,patience=100,max_candidates=12,full_evals=2,outfile="stratoML.outtrees"):
+    _prepare_tree_for_mfc2(tree,ss)
+    bestaic,_,_,mfc_rates,strat_params = calc_tree_ll2_with_rates(tree,qmats,ss,tree_mod)
+    besttree = tree.get_newick_repr()
+    tipdic = bp.get_tip_indices(tree)
+    cursig = topology_signature(tree,tipdic)
+    seen = set([cursig])
+    outfl = open(outfile,"w")
+    outfl.write(str(bestaic)+" "+besttree+"\n")
+
+    lastchange = 0
+    if anc_start == True:
+        changed,bestaic,mfc_rates,strat_params = find_new_ancestor4(
+            tree,qmats,ss,bestaic,mfc_rates,strat_params,tree_mod,max_candidates,full_evals,seen,tipdic
+        )
+        if changed:
+            besttree = tree.get_newick_repr()
+            seen.add(topology_signature(tree,tipdic))
+            outfl.write(str(bestaic)+" "+besttree+"\n")
+
+    moves = ["ancestor4","bifurcate_ad4","global_ancestor4"]
+    weights = [0.65,0.25,0.10]
+    for i in range(max_iter):
+        if i-lastchange >= patience:
+            break
+
+        move = random.choices(population=moves,weights=weights,k=1)[0]
+        if move == "ancestor4":
+            changed,curaic,cur_mfc_rates,cur_strat_params = find_new_ancestor4(
+                tree,qmats,ss,bestaic,mfc_rates,strat_params,tree_mod,max_candidates,full_evals,seen,tipdic
+            )
+        elif move == "bifurcate_ad4":
+            changed,curaic,cur_mfc_rates,cur_strat_params = find_bifurcate_ad4(
+                tree,qmats,ss,bestaic,mfc_rates,strat_params,tree_mod,max_candidates,full_evals,seen,tipdic
+            )
+        elif move == "global_ancestor4":
+            changed,curaic,cur_mfc_rates,cur_strat_params = find_global_ancestor4(
+                tree,qmats,ss,bestaic,mfc_rates,strat_params,tree_mod,max_candidates * 2,max(full_evals,3),seen,tipdic
+            )
+        else:
+            print("need to specify a valid move")
+            sys.exit()
+
+        print("ITERATION",i,changed,curaic,move)
+
+        if changed and curaic < bestaic:
+            bestaic = curaic
+            mfc_rates = cur_mfc_rates
+            strat_params = cur_strat_params
+            besttree = tree.get_newick_repr()
+            cursig = topology_signature(tree,tipdic)
+            lastchange = i
+            print("CURRENT:",bestaic,besttree)
+            if cursig not in seen:
+                seen.add(cursig)
+                outfl.write(str(bestaic)+" "+besttree+"\n")
+
+    print("BEST",bestaic,besttree)
+    outfl.close()
+    return besttree,bestaic
 
 def search_ancestors2(tree,qmats,ss,startaic = None,tree_mod="bds"):
     if startaic == None:
@@ -1044,4 +1352,3 @@ def map_strat_to_tree(tree, flnm):
 
     stratlike.calibrate_brlens_strat(tree)
     sort_children_by_age(tree)
-

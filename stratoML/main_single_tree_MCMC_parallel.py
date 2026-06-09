@@ -22,6 +22,8 @@ _worker_qmats = None
 _worker_lam_mats = None
 _worker_ss = None
 _worker_pqr_start = None
+MCMC_SAVE_DISCARD = 100
+MCMC_SAVE_THIN = 15
 
 
 def init_worker(tree, qmats, lam_mats, ss, pqr_start):
@@ -108,10 +110,58 @@ def mcmc_pool(tree, qmats, lam_mats, ss, pqr_start, nwalkers):
         pool.join()
 
 
+def load_restart_positions(chain_file, nwalkers, ndim):
+    if not os.path.exists(chain_file):
+        raise FileNotFoundError(f"Restart chain file does not exist: {chain_file}")
+
+    chain_df = pd.read_csv(chain_file)
+    column_names = [f"param_{i}" for i in range(ndim)]
+    missing_columns = [col for col in column_names if col not in chain_df.columns]
+    if missing_columns:
+        raise ValueError(
+            "Restart chain is missing expected columns: "
+            + ", ".join(missing_columns)
+        )
+    if len(chain_df) < nwalkers:
+        raise ValueError(
+            f"Restart chain has {len(chain_df)} samples, but {nwalkers} walkers are needed."
+        )
+
+    positions = chain_df[column_names].tail(nwalkers).to_numpy(dtype=np.float64)
+    if positions.shape != (nwalkers, ndim):
+        raise ValueError(
+            f"Restart positions have shape {positions.shape}; expected {(nwalkers, ndim)}."
+        )
+    if np.any(~np.isfinite(positions)):
+        raise ValueError("Restart chain contains non-finite parameter values.")
+    if np.any(positions <= 1e-5) or np.any(positions > 10.0):
+        raise ValueError("Restart chain contains parameter values outside the MCMC prior bounds.")
+
+    return positions, chain_df[column_names].copy()
+
+
+def estimate_saved_generations(nsamples, nwalkers):
+    if nsamples <= 0:
+        return 0
+    saved_steps = int(math.ceil(float(nsamples) / float(nwalkers)))
+    return MCMC_SAVE_DISCARD + saved_steps * MCMC_SAVE_THIN
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
-        print("usage: "+ sys.argv[0]+ " <newick> <trait fasta file> <stratigraphic data> <stratigraphic model> <morphologic model>")
+    if len(sys.argv) not in (7, 8):
+        print("usage: "+ sys.argv[0]+ " <newick> <trait fasta file> <stratigraphic data> <stratigraphic model> <morphologic model> <num_gen> [previous mcmc samples csv]")
         sys.exit()
+
+    try:
+        num_gen = int(sys.argv[6])
+    except ValueError:
+        print(f"num_gen must be an integer; received {sys.argv[6]!r}")
+        sys.exit()
+    if num_gen <= 0:
+        print(f"num_gen must be positive; received {num_gen}")
+        sys.exit()
+
+    restart_chain_file = sys.argv[7] if len(sys.argv) == 8 else None
     
     traits,ss = read_fasta.read_fasta(sys.argv[2])
     ntraits = float(len(list(traits.values())[0]) - 1)
@@ -163,7 +213,19 @@ if __name__ == "__main__":
 
         ndim = 3           # Number of parameters
         nwalkers = 9      # Number of parallel "walkers" (usually 2x or 4x ndim)
-        p0 = abs(np.array(start_rates) + 1.5e-2 * np.random.randn(nwalkers, ndim)) # Initial spread
+        column_names = [f"param_{i}" for i in range(ndim)]
+        previous_samples = None
+        if restart_chain_file is None:
+            p0 = abs(np.array(start_rates) + 1.5e-2 * np.random.randn(nwalkers, ndim)) # Initial spread
+        else:
+            p0, previous_samples = load_restart_positions(restart_chain_file, nwalkers, ndim)
+            print(
+                f"Restarting MCMC from the last {nwalkers} samples in "
+                f"'{restart_chain_file}'."
+            )
+        total_num_gen = num_gen
+        if previous_samples is not None:
+            total_num_gen += estimate_saved_generations(len(previous_samples), nwalkers)
         
         # 3. Run the MCMC
         print("Running MCMC...")
@@ -182,7 +244,12 @@ if __name__ == "__main__":
                     log_probability_worker,
                     pool=pool,
                 )
-            sampler.run_mcmc(p0, 50000, progress=True) # 1000 steps
+            sampler.run_mcmc(
+                p0,
+                num_gen,
+                progress=True,
+                skip_initial_state_check=previous_samples is not None,
+            )
         
         # --- 1. Convergence Analysis ---
         print("\n--- Convergence Diagnostics ---")
@@ -194,10 +261,10 @@ if __name__ == "__main__":
             
             # Rule of thumb: chain length should be >> 50 * tau
             for i, t in enumerate(tau):
-                if 600 > 50 * t:
+                if total_num_gen > 50 * t:
                     print(f"  Parameter {i}: Chain length looks sufficient (> 50 * tau).")
                 else:
-                    print(f"  Parameter {i}: Warning! Chain might be too short (600 steps < 50 * tau).")
+                    print(f"  Parameter {i}: Warning! Chain might be too short ({total_num_gen} steps < 50 * tau).")
         except emcee.autocorr.AutocorrError as e:
             print("Autocorrelation time warning:", e)
             print("The chain is likely too short or hasn't converged enough to reliably estimate autocorrelation.")
@@ -212,30 +279,35 @@ if __name__ == "__main__":
 
         # --- 2. Extract and Save Flat Samples to CSV ---
         # Your original discard and thin parameters
-        flat_samples = sampler.get_chain(discard=100, thin=15, flat=True)
+        save_discard = 0 if previous_samples is not None else MCMC_SAVE_DISCARD
+        flat_samples = sampler.get_chain(discard=save_discard, thin=MCMC_SAVE_THIN, flat=True)
 
         # Convert to a Pandas DataFrame for easy CSV exporting
         # (Adjust column names to match your actual parameters if desired)
-        column_names = [f"param_{i}" for i in range(ndim)]
-        df = pd.DataFrame(flat_samples, columns=column_names)
+        new_df = pd.DataFrame(flat_samples, columns=column_names)
+        if previous_samples is None:
+            df = new_df
+        else:
+            df = pd.concat([previous_samples, new_df], ignore_index=True)
 
         # Construct CSV filename from sys.argv[1]
         output_base = sys.argv[2] 
         csv_filename = f"{output_base}_mcmc_samples.csv"
         df.to_csv(csv_filename, index=False)
 
-        print(f"\nSuccessfully saved {len(flat_samples)} flat samples to '{csv_filename}'.")
+        print(f"\nSuccessfully saved {len(df)} flat samples to '{csv_filename}'.")
+        if previous_samples is not None:
+            print(f"  Appended {len(new_df)} new samples to {len(previous_samples)} restart samples.")
 
         #flat_samples = sampler.get_chain(discard=100, thin=15, flat=True)
 
         # Get the "Best Fit" (Median) and 16th/84th percentiles
+        flat_samples = df.to_numpy(dtype=np.float64)
         for i in range(ndim):
             mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
             print(f"Param {i}: {mcmc[1]:.4f} (+{mcmc[2]-mcmc[1]:.4f} / -{mcmc[1]-mcmc[0]:.4f})")
         
         # 2. Corner Plot: The 4D "Diagnosis"
-        # Discard burn-in (e.g., first 1/3 of steps) and flatten the chain
-        flat_samples = sampler.get_chain(discard=100, thin=10, flat=True)
         labels = ["gain rate", "loss rate", "sub ratio"]
         fig = corner.corner(
             flat_samples, 
