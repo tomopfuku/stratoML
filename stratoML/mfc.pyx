@@ -110,28 +110,40 @@ cdef double split_loglike_single_trait_marg(node.Node n, double[:, :] p1, double
             sys.exit()
 
 cdef double split_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
-    cdef double nodelike, charll, dt
+    cdef double nodelike, charll, dt, dt1, dt2
     cdef int chari, cur_k #, ti, tj, anc1, anc2, traitprob_i, nscenarios
     cdef node.Node ch
-    cdef double[:, :, :] pmats0, pmats1
-    cdef double[:, :] p0, p1
+    cdef double[:, :] p0, p1, p2
+    cdef list pmats1, pmats2
+    cdef object cached_p
 
     if len(n.children) != 2:
         print("hypothetical ancestors can only have two children in the model.")
         sys.exit() 
 
-    dt = get_child_dt(n.children[0])
-    pmats1 = qmats.calc_p_mats(dt)
-    dt = get_child_dt(n.children[1])
-    pmats2 = qmats.calc_p_mats(dt)
+    dt1 = get_child_dt(n.children[0])
+    dt2 = get_child_dt(n.children[1])
+    pmats1 = [None] * 8
+    pmats2 = [None] * 8
 
     for chari in range(0,len(ss)):
         cur_k = ss[chari]
         if cur_k == 1:
             continue
 
-        p1 = pmats1[cur_k - 2]
-        p2 = pmats2[cur_k - 2]
+        cached_p = pmats1[cur_k]
+        if cached_p is None:
+            p1 = qmats.calc_single_p_mat(dt1, cur_k)
+            pmats1[cur_k] = p1
+        else:
+            p1 = cached_p
+
+        cached_p = pmats2[cur_k]
+        if cached_p is None:
+            p2 = qmats.calc_single_p_mat(dt2, cur_k)
+            pmats2[cur_k] = p2
+        else:
+            p2 = cached_p
         split_loglike_single_trait_marg(n, p1, p2, cur_k, chari)
 
 def max_scale_lv(node.Node n):
@@ -349,15 +361,23 @@ cdef budd_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
         budd_loglike_single_trait_marg(n, qmats, cur_k, chari)#, desc_weight)
         
 """
-def calc_midpoint_ll(node.Node n, double[:, :, :] pmats, long[:] ss):
+def calc_midpoint_ll(node.Node n, qmat.Qmat qmats, double dt, long[:] ss):
     cdef int cur_k
     cdef double [:, :] pmat
+    cdef list pmat_cache = [None] * 8
+    cdef object cached_p
 
     for chari in range(0,len(n.timeslice_lv[0])):
         cur_k = ss[chari]
         if cur_k == 1:
             continue
-        pmat = pmats[cur_k - 2] 
+
+        cached_p = pmat_cache[cur_k]
+        if cached_p is None:
+            pmat = qmats.calc_single_p_mat(dt, cur_k)
+            pmat_cache[cur_k] = pmat
+        else:
+            pmat = cached_p
         calc_midpoint_ll_single_trait(n, pmat, cur_k, chari)
 
 def calc_midpoint_ll_single_trait(node.Node n, double[:, :] pmat, int cur_k, int chari):
@@ -450,11 +470,12 @@ cdef budd_loglike_single_trait_marg(node.Node n, node.Node ch, double[:,:] p1, d
 
 cdef budd_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
     cdef int chari, cur_k, chd_i #, i ,j,nscen, ancst, k, maxstates
-    cdef double prev_time, dt 
+    cdef double prev_time, dt, dt1, dt2
     cdef node.Node ch
     cdef bint past_mid
-    cdef double[:, :, :] pmats1, pmats2
     cdef double[:, :] p1, p2
+    cdef list pmats1, pmats2
+    cdef object cached_p
     #desc_weight = 1.0 / float(len(n.children))
 
     past_mid = False
@@ -462,34 +483,43 @@ cdef budd_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
     
     if n.midpoint_lv_index == 0:
             dt = n.midpoint - prev_time
-            pmats1 = qmats.calc_p_mats(dt)
-            calc_midpoint_ll(n, pmats1, ss) # need to compute the likelihood at the midpoint if we've hit the first child beyond the midpoint
+            calc_midpoint_ll(n, qmats, dt, ss) # need to compute the likelihood at the midpoint if we've hit the first child beyond the midpoint
             past_mid = True
             prev_time = n.midpoint
 
     for chd_i in reversed( range( len(n.children) ) ): # start with child farthest from the root
         ch = n.children[chd_i]
         
-        dt = get_child_dt(ch)
-        pmats1 = qmats.calc_p_mats(dt)
-        dt = ch.lower - prev_time
-        pmats2 = qmats.calc_p_mats(dt)
+        dt1 = get_child_dt(ch)
+        dt2 = ch.lower - prev_time
+        pmats1 = [None] * 8
+        pmats2 = [None] * 8
         
         for chari in range(0, len(ss)):
             cur_k = ss[chari]
             if cur_k == 1:
                 continue
             
-            p1 = pmats1[cur_k - 2]
-            p2 = pmats2[cur_k - 2]
+            cached_p = pmats1[cur_k]
+            if cached_p is None:
+                p1 = qmats.calc_single_p_mat(dt1, cur_k)
+                pmats1[cur_k] = p1
+            else:
+                p1 = cached_p
+
+            cached_p = pmats2[cur_k]
+            if cached_p is None:
+                p2 = qmats.calc_single_p_mat(dt2, cur_k)
+                pmats2[cur_k] = p2
+            else:
+                p2 = cached_p
             
             budd_loglike_single_trait_marg(n, ch, p1, p2, cur_k, chari)#, desc_weight)
  
         prev_time = ch.lower
         if ch.parent_lv_index == n.midpoint_lv_index - 1:
             dt = n.midpoint - prev_time
-            pmats1 = qmats.calc_p_mats(dt)
-            calc_midpoint_ll(n, pmats1, ss) # need to compute the likelihood at the midpoint if we've hit the first child beyond the midpoint
+            calc_midpoint_ll(n, qmats, dt, ss) # need to compute the likelihood at the midpoint if we've hit the first child beyond the midpoint
 
             past_mid = True
             prev_time = n.midpoint
@@ -699,15 +729,15 @@ def budd_cladogenesis_one_step(node.Node ch, qmat.Qmat qmats, long[:] ss, double
     cdef int i, j, k, cur_k, nscen, ancst, traitprob_i, anc1
     cdef double cumprob, curprob, weight, traitprob
     cdef double[:, :] p1, desc_lv, anc_marg
-    cdef double[:, :, :] pmats
     cdef long[:] ancsts
+    cdef list pmat_cache = [None] * 8
+    cdef object cached_p
 
     if ch.parent == None:
         print("ERROR: cannot use cladogenetic process on branch with no parent!!")
         sys.exit()
 
     dt = get_child_dt(ch)
-    pmats = qmats.calc_p_mats(dt)
     
     desc_lv = ch.timeslice_lv[-1]
     anc_marg = ch.parent.timeslice_lv[ch.parent_lv_index]
@@ -719,8 +749,13 @@ def budd_cladogenesis_one_step(node.Node ch, qmat.Qmat qmats, long[:] ss, double
             continue
         #print(cur_k, list(anc_marg[i][0:10]))
         cur_scen = bm.get_buddmat(cur_k)
-        p1 = pmats[cur_k - 2] 
-        for traitprob_i in range(len(desc_lv)):
+        cached_p = pmat_cache[cur_k]
+        if cached_p is None:
+            p1 = qmats.calc_single_p_mat(dt, cur_k)
+            pmat_cache[cur_k] = p1
+        else:
+            p1 = cached_p
+        for traitprob_i in range(len(desc_lv[i])):
             traitprob = desc_lv[i][traitprob_i]
             if traitprob == 0.0:
                 continue
@@ -753,9 +788,9 @@ def budd_anagenesis_one_step(node.Node n, node.Node ch, double dt, qmat.Qmat qma
     cdef int i, j, k, cur_k
     cdef double cumprob, curprob, sum_all
     cdef double[:, :] p1, cur_lv#, prev_marg
-    cdef double[:, :, :] pmats
+    cdef list pmat_cache = [None] * 8
+    cdef object cached_p
 
-    pmats = qmats.calc_p_mats(dt)
     if ch.parent_lv_index == len(n.timeslice_lv) - 1:
         print("ERROR: cannot calc ASRs based on anagenetic process for first timeslice along branch. need to do cladogenetic process")
         sys.exit()
@@ -764,7 +799,15 @@ def budd_anagenesis_one_step(node.Node n, node.Node ch, double dt, qmat.Qmat qma
     #prev_marg = n.timeslice_lv[ch.parent_lv_index + 1] # previous marg vec is the index one higher than cur (moving forward in time)
     for i in range(len(ss)):
         cur_k = ss[i] 
-        p1 =  pmats[cur_k - 2] 
+        if cur_k == 1:
+            continue
+
+        cached_p = pmat_cache[cur_k]
+        if cached_p is None:
+            p1 = qmats.calc_single_p_mat(dt, cur_k)
+            pmat_cache[cur_k] = p1
+        else:
+            p1 = cached_p
 
         forward_probs1 = np.zeros(len(cur_lv[i])) 
         for j in range(len(cur_lv[i])):
@@ -829,24 +872,40 @@ def compute_mfc2_ASRs(node.Node tree, qmat.Qmat qmats, long[:] ss):
 
 def splitting_forward_probs(node.Node n, qmat.Qmat qmats,  long[:] ss):
     cdef int i
-    cdef double dt
-    cdef double[:,:,:] pmats1, pmats2
+    cdef double dt1, dt2
+    cdef double[:,:] p1, p2
+    cdef list pmats1, pmats2
+    cdef object cached_p
     cdef node.Node ch
 
     ch = n.children[0]
-    dt = get_child_dt(ch)
-    pmats1 = qmats.calc_p_mats(dt)
+    dt1 = get_child_dt(ch)
 
     ch = n.children[1]
-    dt = get_child_dt(ch)
-    pmats2 = qmats.calc_p_mats(dt)
+    dt2 = get_child_dt(ch)
 
+    pmats1 = [None] * 8
+    pmats2 = [None] * 8
 
     for i in range(1,len(n.timeslice_lv[0])): # i is a trait index
         if ss[i] == 1:
             continue
 
-        splitting_forward_probs_single_trait(n, pmats1, pmats2, ss[i], i)
+        cached_p = pmats1[ss[i]]
+        if cached_p is None:
+            p1 = qmats.calc_single_p_mat(dt1, ss[i])
+            pmats1[ss[i]] = p1
+        else:
+            p1 = cached_p
+
+        cached_p = pmats2[ss[i]]
+        if cached_p is None:
+            p2 = qmats.calc_single_p_mat(dt2, ss[i])
+            pmats2[ss[i]] = p2
+        else:
+            p2 = cached_p
+
+        splitting_forward_probs_single_trait(n, p1, p2, ss[i], i)
 
 
 
@@ -878,11 +937,10 @@ def get_child_dt(node.Node ch, bint return_range = False):
     else:
         return np.array([start,end])
 
-def splitting_forward_probs_single_trait(node.Node n, double[:,:,:] pmats1, double[:,:,:] pmats2, int cur_k, int chari):
+def splitting_forward_probs_single_trait(node.Node n, double[:,:] p1, double[:,:] p2, int cur_k, int chari):
     cdef double traitprob, curp1, curp2, weight, dt, anc_prob, cum_anc_prob
     cdef long[:] spltanc 
     cdef int ti, tj, anc1, anc2, traitprob_i, nscenarios
-    cdef double[:,:] p1, p2
     cdef double[:] ch1_tr,ch2_tr
     cdef long[:,:,:] cur_scen
     cdef node.Node ch
@@ -896,11 +954,9 @@ def splitting_forward_probs_single_trait(node.Node n, double[:,:,:] pmats1, doub
     
     ch = n.children[0]
     ch1_tr = ch.timeslice_lv[-1][chari]
-    p1 = pmats1[cur_k - 2]
  
     ch = n.children[1]
     ch2_tr = ch.timeslice_lv[-1][chari]
-    p2 = pmats2[cur_k - 2]
 
     forward_probs1 = np.zeros(len(ch1_tr)) 
     forward_probs2 = np.zeros(len(ch2_tr)) 
@@ -1529,4 +1585,3 @@ cdef double calc_invar_ll(node.Node tree):
         treell += nodell
     #print(treell)    
     return treell
-

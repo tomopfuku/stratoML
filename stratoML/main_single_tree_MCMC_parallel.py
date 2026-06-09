@@ -182,7 +182,7 @@ if __name__ == "__main__":
                     log_probability_worker,
                     pool=pool,
                 )
-            sampler.run_mcmc(p0, 600, progress=True) # 1000 steps
+            sampler.run_mcmc(p0, 50000, progress=True) # 1000 steps
         
         # --- 1. Convergence Analysis ---
         print("\n--- Convergence Diagnostics ---")

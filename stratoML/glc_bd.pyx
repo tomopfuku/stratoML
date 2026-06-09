@@ -35,6 +35,27 @@ cpdef double[:] max_scale_timeslice(double[:] anc_marg):
 
     return scaled_anc_marg
 
+cdef inline double scale_timeslice_into(double[:] src, double[:,:,:] dest_all, int dest_i, int chari, int nstates):
+    cdef int j
+    cdef double max_val = 0.0
+
+    for j in range(nstates):
+        if src[j] > max_val:
+            max_val = src[j]
+
+    if max_val == 0.0:
+        for j in range(src.shape[0]):
+            dest_all[dest_i][chari][j] = 0.0
+        return max_val
+
+    for j in range(src.shape[0]):
+        if j < nstates:
+            dest_all[dest_i][chari][j] = src[j] / max_val
+        else:
+            dest_all[dest_i][chari][j] = 0.0
+
+    return max_val
+
 cdef calc_M_matrix(double dt, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, double[:] bds_rates):
     return
 
@@ -98,7 +119,8 @@ cdef calc_like_to_base(double[:, :] last_tr, qmat.Qmat qmats, lam_mat.lam_mat la
     cdef double[:, :] working_tr = np.empty((nch, ncol), dtype=np.float64)
     cdef double[:] D_anc_buffer = np.empty(ncol, dtype=np.float64)
     cdef double[:, :] curp
-    cdef object pmats
+    cdef object cached_p
+    cdef list pmat_cache
 
     # Copy last_tr to working_tr
     for chari in range(nch):
@@ -108,12 +130,10 @@ cdef calc_like_to_base(double[:, :] last_tr, qmat.Qmat qmats, lam_mat.lam_mat la
     for i in range(nseg):
         cur_dt = seg_durations[i]
         model_type = seg_models[i]
+        pmat_cache = [None] * 8
 
         if model_type == 0:
-            pmats = qmats.calc_p_mats(cur_dt)
             p_surv = calc_prob_surv(cur_dt, bds_rates)
-        elif model_type == 1:
-            pmats = qmats.calc_m_mats(cur_dt, lam_mats, bds_rates)
 
         for chari in range(nch):
             cur_k = ss[chari]
@@ -122,7 +142,15 @@ cdef calc_like_to_base(double[:, :] last_tr, qmat.Qmat qmats, lam_mat.lam_mat la
             if cur_k == 1:
                 continue
 
-            curp = pmats[cur_k - 2]
+            cached_p = pmat_cache[cur_k]
+            if cached_p is None:
+                if model_type == 0:
+                    curp = qmats.calc_single_p_mat(cur_dt, cur_k)
+                else:
+                    curp = qmats.calc_single_m_mat(cur_dt, lam_mats, bds_rates, cur_k)
+                pmat_cache[cur_k] = curp
+            else:
+                curp = cached_p
 
             for j in range(nstates):
                 val = 0.0
@@ -177,12 +205,12 @@ cdef calc_like_to_base_OLD(double[:, :] last_tr, qmat.Qmat qmats, lam_mat.lam_ma
 
 cpdef double[:, :] missing_trait_vec_all(long[:] ss):
     cdef double[:, :] tr = np.zeros([len(ss), 128])
-    cdef int j, k
+    cdef int j, k, nstate
     
-    for j, cur_k in enumerate(ss):
-        ana_tr = mfc.missing_trait_vec(cur_k)
-        for k in range(len(ana_tr)):
-            tr[j][k] = ana_tr[k]
+    for j in range(ss.shape[0]):
+        nstate = 1 << ss[j]
+        for k in range(1, nstate):
+            tr[j][k] = 1.0
     return tr
 
 def budd_node_join(double[:,:] anc_ll, 
@@ -221,6 +249,52 @@ def budd_node_join(double[:,:] anc_ll,
 
     return budd_ll_ch
 
+cdef void budd_node_join_scale_into(double[:,:] anc_ll,
+                                    double[:, :] base_ll_ch,
+                                    lam_mat.lam_mat lam_mats,
+                                    long[:] ss,
+                                    double[:,:,:] dest_all,
+                                    double[:,:] scaling_factors,
+                                    int dest_i):
+    cdef int n_chars = ss.shape[0]
+    cdef int chari, i, j, cur_k, nstates, ncol = base_ll_ch.shape[1]
+    cdef double[:,:] mat_view
+    cdef double[:] row = np.empty(ncol, dtype=np.float64)
+    cdef double dot_product_val, joined_val, max_val
+
+    for chari in range(n_chars):
+        cur_k = ss[chari]
+        nstates = 1 << cur_k
+
+        if cur_k == 1:
+            scaling_factors[dest_i][chari] = 0.0
+            for i in range(ncol):
+                dest_all[dest_i][chari][i] = 0.0
+            continue
+
+        mat_view = lam_mats.get_ratemat(cur_k)
+        max_val = 0.0
+
+        for i in range(nstates):
+            dot_product_val = 0.0
+            for j in range(nstates):
+                dot_product_val += mat_view[i, j] * base_ll_ch[chari, j]
+            joined_val = dot_product_val * anc_ll[chari, i]
+            row[i] = joined_val
+            if joined_val > max_val:
+                max_val = joined_val
+
+        scaling_factors[dest_i][chari] = max_val
+        if max_val == 0.0:
+            for i in range(ncol):
+                dest_all[dest_i][chari][i] = 0.0
+        else:
+            for i in range(ncol):
+                if i < nstates:
+                    dest_all[dest_i][chari][i] = row[i] / max_val
+                else:
+                    dest_all[dest_i][chari][i] = 0.0
+
 def budd_node_join_UNOPTIMIZED(double[:,:] anc_ll, double[:, :] base_ll_ch, lam_mat.lam_mat lam_mats, long[:] ss, bint rescale = False):
     cdef double[:,:] budd_ll_ch = np.zeros_like(base_ll_ch) 
 
@@ -255,7 +329,7 @@ def split_like_marg(node.Node n,
     # Pre-allocate or access existing views
     # Assuming n.children[0].timeslice_lv[-1] provides the shape (n_chars, max_states)
     cdef double[:, :] join_ll = np.zeros((n_chars, n.children[0].timeslice_lv[-1].shape[1]), dtype=np.float64)
-    cdef double[:] scaled_anc_marg_i
+    cdef double max_val
 
     if len(n.children) != 2:
         print("hypothetical ancestors can only have two children in the model.")
@@ -292,15 +366,10 @@ def split_like_marg(node.Node n,
                     join_ll[chari, j] *= dot_product
 
         for chari in range(n_chars):
-            # Scaling factors update
-            # Assuming n.scaling_factors is an object/array accessible via indices
-            n.scaling_factors[ch.parent_lv_index][chari] = max(join_ll[chari])
-            
-            # This is likely a bottleneck if it returns a new list/array
-            scaled_anc_marg_i = mfc.max_scale_timeslice(join_ll[chari])
-
-            for j in range(len(scaled_anc_marg_i)):
-                n.timeslice_lv[ch.parent_lv_index][chari][j] = scaled_anc_marg_i[j]
+            cur_k = ss[chari]
+            nstates = 1 << cur_k
+            max_val = scale_timeslice_into(join_ll[chari], n.timeslice_lv, ch.parent_lv_index, chari, nstates)
+            n.scaling_factors[ch.parent_lv_index][chari] = max_val
 
 
 cdef double split_like_marg_UNOPTIMIZED(node.Node n, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long[:] ss, double[:] bds_rates):
@@ -352,9 +421,10 @@ cdef budd_like_marg(node.Node n, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long
     cdef bint past_mid
     cdef double[:, :, :] pmats1, pmats2
     cdef double[:, :] p1, p2, ana_tr, ch_tr, base_ll_ch, base_ll_par_br, anc_marg 
-    cdef double[:] seg_durations, ch_times, scaled_anc_marg_i
+    cdef double[:] seg_durations, ch_times
     cdef int[:] seg_models
     cdef list times
+    cdef double max_val
 
     times = [ch.lower for ch in n.children]
     times.append(n.midpoint)
@@ -374,14 +444,15 @@ cdef budd_like_marg(node.Node n, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long
         if i == n.midpoint_lv_index:
             anc_marg = np.zeros_like(base_ll_par_br)
             for chari in range(len(ss)):
-                cur_tr = np.asarray(n.timeslice_lv[n.midpoint_lv_index][chari]) * np.asarray(base_ll_par_br[chari])
-                for j in range(len(cur_tr)):
-                    anc_marg[chari][j] = cur_tr[j] 
-                n.scaling_factors[n.midpoint_lv_index][chari] = max(anc_marg[chari]) 
-                scaled_anc_marg_i = mfc.max_scale_timeslice(anc_marg[chari])
-
-                for j in range(len(scaled_anc_marg_i)):
-                    n.timeslice_lv[n.midpoint_lv_index][chari][j] = scaled_anc_marg_i[j] 
+                cur_k = ss[chari]
+                nstates = 1 << cur_k
+                for j in range(anc_marg.shape[1]):
+                    if j < nstates:
+                        anc_marg[chari][j] = n.timeslice_lv[n.midpoint_lv_index][chari][j] * base_ll_par_br[chari][j]
+                    else:
+                        anc_marg[chari][j] = 0.0
+                max_val = scale_timeslice_into(anc_marg[chari], n.timeslice_lv, n.midpoint_lv_index, chari, nstates)
+                n.scaling_factors[n.midpoint_lv_index][chari] = max_val
             past_mid = True
         else:
             if past_mid == False:
@@ -403,16 +474,15 @@ cdef budd_like_marg(node.Node n, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long
                 #exit()
             ch_tr = ch.timeslice_lv[-1]
             base_ll_ch = calc_like_to_base(ch_tr, qmats, lam_mats, ss, bds_rates, seg_durations, seg_models)
-            anc_marg = budd_node_join(base_ll_par_br, base_ll_ch, lam_mats, ss, True)
-            #print([c.label for c in n.children])
-            #print(n.label, ch.label, ch_ind, i, list(anc_marg[0]))
-            for chari in range(len(ss)):
-                n.scaling_factors[ch.parent_lv_index][chari] = max(anc_marg[chari]) 
-                #print(n.label, ch.label, chari, list(anc_marg[chari]))
-                scaled_anc_marg_i = mfc.max_scale_timeslice(anc_marg[chari])
-
-                for j in range(len(scaled_anc_marg_i)):
-                    n.timeslice_lv[ch.parent_lv_index][chari][j] = scaled_anc_marg_i[j] 
+            budd_node_join_scale_into(
+                base_ll_par_br,
+                base_ll_ch,
+                lam_mats,
+                ss,
+                n.timeslice_lv,
+                n.scaling_factors,
+                ch.parent_lv_index,
+            )
         prev_time = cur_time                
 
 def calc_bud_root_ll_single_trait(node.Node tree, qmat.Qmat qmats, int cur_k, int chari):
@@ -493,7 +563,7 @@ def mfc3_treell(node.Node tree, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long[
     cdef double treell, asc_treell, plike, flat_prior, invarll, sum_plikes, sublike
     cdef double[:,:] root_marg_likes
     cdef double[:] plikes, sum_log_sf
-    cdef int i, j, k, count
+    cdef int i, j, k, count, nstates
     cdef node.Node n
 
     treell = 0.0
@@ -518,16 +588,15 @@ def mfc3_treell(node.Node tree, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long[
         if ss[i] == 1: # invariant traits do not contribute to the tree likelihood bc we use ascertainment bias correction
             continue
         plikes = root_marg_likes[i]
-        sum_plikes = sum(plikes)
+        nstates = 1 << ss[i]
+        sum_plikes = 0.0
+        for j in range(nstates):
+            sum_plikes += plikes[j]
+
         sublike = 0.0
-        count = 0
-        
-        for j in range(len(plikes)):
-            if j > 0.0:
-                count+=1
-        
+
         #flat_prior = 1.0 / float(count)
-        for j in range(len(plikes)):
+        for j in range(nstates):
             plike = plikes[j]
             sublike += plike * (plike / sum_plikes) #flat_prior 
         #print(i, np.log(sublike), np.log(sublike) + sum_log_sf[i], np.exp(np.log(sublike) + sum_log_sf[i]))
@@ -551,7 +620,7 @@ cdef double calc_invar_ll_marg(node.Node tree, qmat.Qmat qmats):
     cdef double desc_weight, nodell, sum_log_sf, sublike, sum_plikes, plike
     cdef double[:] plikes
     cdef node.Node n
-    cdef int i, j, count
+    cdef int i, j, count, nstates
     cdef double [:, :, :] pmats1, pmats2
 
     """
@@ -582,14 +651,14 @@ cdef double calc_invar_ll_marg(node.Node tree, qmat.Qmat qmats):
         for i in range(len(n.scaling_factors)):
             sum_log_sf += np.log(n.scaling_factors[i][0])
         
-    sum_plikes = sum(plikes)
-    sublike = 0.0
-    count = 0
-    for j in range(len(plikes)):
-        if plikes[j] > 0.0:
-            count+=1
+    nstates = 1 << 2
+    sum_plikes = 0.0
+    for j in range(nstates):
+        sum_plikes += plikes[j]
 
-    for j in range(len(plikes)):
+    sublike = 0.0
+
+    for j in range(nstates):
         plike = plikes[j]
         sublike += plike * (plike / sum_plikes) #1.0 / count 
 
@@ -677,4 +746,3 @@ def evaluate_m_l3(double[:] params, node.Node tree, qmat.Qmat qmats, lam_mat.lam
 
     #print(lam, lsub_w, gainr, lossr, -treell)
     return -treell
-

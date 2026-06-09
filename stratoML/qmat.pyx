@@ -38,28 +38,36 @@ cdef class Qmat:
         p = mfc.calc_p_matrix(self.get_qmat(ss),t)
         return p
 
+    def calc_single_m_mat(self, double dt, lam_mat.lam_mat lam_mats, double[:] bds_rates, int ss):
+        cdef double[:,:] curq = self.get_qmat(ss)
+        cdef double[:,:] curlam = lam_mats.get_ratemat(ss)
+        cdef np.ndarray[np.float64_t, ndim=2] curm = np.asarray(curq).copy()
+        cdef np.ndarray[np.float64_t, ndim=2] curM
+        cdef double E_t = bd.calc_extinction_prob_eq(bds_rates[0], bds_rates[1], bds_rates[2])
+        cdef double diag
+        cdef int j, k, nstates = 1 << ss
+
+        for j in range(nstates):
+            for k in range(nstates):
+                curm[j, k] += curlam[j, k] * E_t
+
+            if j == 0:
+                diag = 0.0
+            else:
+                diag = curq[j, j] - (bds_rates[0] + bds_rates[1] + bds_rates[2]) + (bds_rates[0] * E_t)
+            curm[j, j] = diag
+
+        curM = expm(curm * dt)
+        return curM
+
 
     def calc_m_mats(self, double dt, lam_mat.lam_mat lam_mats, double[:] bds_rates, int max_states = 7):
         cdef double[:,:,:] mats = np.zeros((int(max_states)-1,int(2**max_states),int(2**max_states)),dtype=np.double)
-        cdef double[:,:] curm, curq, curlam
-        #cdef double[:] lam_tot = np.zeros(N, dtype=np.float64)
-        cdef double diag_penalty, diag_reward, lam_g, diag
-        cdef int i,j,k#, N = int(2**max_states)
-        E_t = bd.calc_extinction_prob_eq(bds_rates[0], bds_rates[1], bds_rates[2])
+        cdef double[:,:] curM
+        cdef int i,j,k
 
         for i in range(2,max_states+1):
-            #curm = np.zeros((N, N), dtype=np.float64)
-            curq = np.asarray(self.get_qmat(i))
-            curlam = np.asarray(lam_mats.get_ratemat(i))
-            curm = curq + ( curlam * E_t)
-            for j in range(len(curm)):
-                if j == 0:
-                    diag = 0.0
-                else:
-                    diag = curq[j, j] - (bds_rates[0] + bds_rates[1] + bds_rates[2]) + ( bds_rates[0] * E_t )
-                curm[j, j] = diag
-
-            curM = expm(np.asarray(curm) * dt) 
+            curM = self.calc_single_m_mat(dt, lam_mats, bds_rates, i)
             for j in range(len(curM)):
                 for k in range(len(curM[j])):
                     mats[i-2][j][k] = curM[j, k]
@@ -100,7 +108,7 @@ cdef class Qmat:
         cdef double[:,:] curp
         cdef int i,j,k
         for i in range(2,max_states+1):
-            curp = mfc.calc_p_matrix(self.get_qmat(i),t)
+            curp = self.calc_single_p_mat(t, i)
             for j in range(len(curp)):
                 for k in range(len(curp)):
                     mats[i-2][j][k] = curp[j][k]
