@@ -62,10 +62,25 @@ def log_probability_worker(params):
     )
 
 
+def get_max_mcmc_workers(nwalkers):
+    default_workers = min(nwalkers, os.cpu_count() or 1)
+    max_workers = os.environ.get("MCMC_MAX_THREADS", os.environ.get("MCMC_NPROCS"))
+
+    if max_workers is None:
+        return default_workers
+
+    try:
+        max_workers = int(max_workers)
+    except ValueError:
+        print(f"Ignoring invalid MCMC_MAX_THREADS/MCMC_NPROCS value: {max_workers!r}")
+        return default_workers
+
+    return max(1, min(nwalkers, max_workers))
+
+
 @contextmanager
 def mcmc_pool(tree, qmats, lam_mats, ss, pqr_start, nwalkers):
-    nproc = int(os.environ.get("MCMC_NPROCS", min(nwalkers, os.cpu_count() or 1)))
-    nproc = max(1, nproc)
+    nproc = get_max_mcmc_workers(nwalkers)
 
     if nproc == 1:
         yield None
@@ -83,7 +98,10 @@ def mcmc_pool(tree, qmats, lam_mats, ss, pqr_start, nwalkers):
         initargs=(tree, qmats, lam_mats, ss, pqr_start),
     )
     try:
-        print(f"Running MCMC with {nproc} forked worker processes.")
+        print(
+            f"Running MCMC with {nproc} forked worker processes "
+            f"for {nwalkers} walkers."
+        )
         yield pool
     finally:
         pool.close()
