@@ -1,0 +1,1242 @@
+---
+title: "Trilobite cal3 Comparison"
+author: "David W. Bapst"
+date: "Saturday, October 24, 2015"
+output: pdf_document
+---
+
+# Archived Email Description of Data From Melanie
+
+I haven't made any changes to the tree (attached is the one I've used to look at changes in disparity/rate of morphological evolution). 
+
+For the FAD/LADs, there are a couple of things to decide on:
+
+1) Strat units (meters) or absolute time? I can scale the section to the start and end of the Steptoean (based on taxon FADs). The start is better constrained than the the end in terms of absolute time.  This assumes a constant "rate of deposition" as represented by the composite units, which I don't think is such a bad assumption, given that the scaling I used is supposed to come closest to representing actual time (compared to other options).
+
+2) average (and estimate confidence intervals) across all solutions or treat each solution separately?  I did the former in early papers, but have started to question this for this reason (excerpted from a recent MS):
+
+One way to incorporate this uncertainty could be to generate a set of scaled trees where the FAD for each species was allowed to vary within the 95% confidence intervals [based on the FADs for each taxon across 100 CONOP solutions]. However, this strategy ignores the fact that the FADs estimated from a given solution are not independent of one another. CONOP approaches the correlation problem in two steps: first, as a seriation problem (the ordinal position of each taxon FAD and LAD), and second as a scaling problem (the relative position within the section of each taxon FAD and LAD). It is during the first step that the quality of the solution is assessed. Shifts in the position of the FADs and LADs differentially affect the quality of the solution depending on the number of co-occurrences with other taxa at their range ends. It is possible to determine a range of best-fit positions given a set of equally well fit solutions, but these uncertainties are not independent. Thus, if the position of one FAD is fixed within its best-fit range (its 95% confidence interval, say), the possible positions of all of the other FADs should be limited to the subset of solutions in which the placement of the first FAD matches that fixed position. In general, each solution is an inseparable ensemble of FADs and LADs.
+
+Basically what I'm suggesting is doing the tree scaling over all of the solutions rather than randomly selecting FADs/LADs within a confidence interval estimated across the solutions.  But we could start with the mean FADs/LADs to see what we get.
+
+Cool, I've attached tables with all of the CONOP solutions in absolute time, one is for all of the taxa that contributed to the composite section, and the other is just for the pterocephaliid taxa in the tree.  I rounded to two decimal places--but I think this is the limit of precision we can assume. I base this on the fact that in the composite, there are around 35-40 meters per million years; this level of precision implies sampling every third of a meter, and sections were often measured to feet or fractions of feet.
+
+Also these results are all from having run the analysis without the pterocephaliid taxa and then rerunning with them while heavily weighted to the previous resulting solution, in order to let their pterocephaliids "find their place" in the composite (this is why the solutions are identified by run and then by a letter, which represented the second run).  The idea was to build a timescale based on other taxa than those I was interested in, and everyone I consulted was on board with this at the time, especially because there were so many other trilobite taxa. The results are frequently multimodal. Just cuz, I might go back and look at the solutions based on all the taxa at once although I recall that the duration estimates were pretty highly correlated between the two different approaches.
+
+Also, I forgot the tree needs a little cleanup (there are taxa in it that I don't have first appearances or landmark data for):
+
+These are the tips to be dropped:
+
+```
+tips<-c('Carcticus',
+        'Cmonilis',
+        'Cpegakanthodes',
+        'Csemigranulosus',
+        'Clongifrons',
+        'Hvarro',
+        'Psemicircularis',
+        'PTconstricta',
+        'PTnorfordi',
+        'PToccidens',
+        'PTtenura',
+        'Sdelicatus'
+)
+```
+
+Both Pearson and Spearman rank correlations of FADs and LADs between the different solutions are really high (0.97 or higher), regardless of whether they are the result of one analysis or a two-step process.  True for both the entire set of taxa and for just the pterocephaliid taxa in the tree.
+
+Here is the trait data, which consists of principal component scores of superimposed landmark data (landmarks summarize the shape of the cranidium). Each row is the mean shape of the species in PC space. Before I used all of the PCs, but 80% of the variation is summarized by the first two, and 95% by the first four, so we could easily justify just using those. Before I estimated per-branch rates by estimating ancestral scores and then calculating Euclidean distances between nodes and nodes/tips.  The basic pattern was one of decreasing rates through time. The data also suggests that rates increased with the appearance of the Pterocephaliinae subfamily even though they weren't as high as earlier in the clade history.
+
+Also, the FAD-LAD files I sent you had full species names rather than the shorthand used in this dataset or the tree.  I've attached an edited FAD-LAD file for the pterocephaliid species so that they match.
+
+Ancestor-descendant pairs (anagenesis):
+
+Prehousia indenta-Prehousia alata
+Parahouria subequalis-Parahousia constricta
+Cernuolimbus laevifrons-Cernuolimbus depressus
+
+Ancestor-descendant pairs (budding cladogenesis):
+
+Sigmocheilus pogonopensis-Sigmocheilus flabellifer
+Sigmocheilus notha-Sigmocheilus pogonopensis
+Strigambitus transversus-Strigambitus utahensis
+Housia ovata-Housia vacuna
+Dicanthopyge quadrata-Dicanthopyge convergens
+Dicanthopyge convergens-Dicanthopyge reductus
+
+Alright, I decided the shorthand was stupid because it might lead to confusion (I know what genus names are attached to each species but most other people won't).  I've attached new files with full species names (e.g., "Aphelaspis_haguei") for all files, and double-checked spelling.  And while I was at it, I pruned the tree so it's consistent with the landmark and FAD files.  Attached are:
+
+minimum number of sampling events, full dataset
+minimum number of sampling events, just pterocephaliids (30 taxa)
+FADs/LADs, scaled to time, for all solutions, full dataset
+FADs/LADs, scaled to time, for all solutions, just pterocephaliids
+pruned tree
+landmark data (PC scores)
+
+# okay now real work
+
+```{r}
+library(paleotree)
+library(beanplot)
+library(geiger)
+library(mvMORPH)
+set.seed(444)
+```
+
+Let's load some data
+
+```{r}
+# pruned tree
+tree<-read.nexus("PteroGW-pruned.tre")
+plot(tree)
+```
+
+
+```{r}
+#need a function to transform flat fad-lad tables into
+  # a list of stacked fad-lad tables for each run
+
+getStackTime<-function(timeInput){
+	fadIn<-timeAll[timeInput[,2]=="FAD",-2]
+	ladIn<-timeAll[timeInput[,2]=="LAD",-2]
+	conopRunNames<-colnames(timeInput)[-(1:2)]
+	taxaNames<-unique(timeInput[,1])
+	# make a list:
+		# a bunch of stacked matrices of fads and lads
+	timeStack<-lapply(conopRunNames,function(x){
+		fadlad<-sapply(taxaNames,function(y){
+			fad<-fadIn[fadIn[,1]==y,colnames(fadIn)==x]
+			lad<-ladIn[ladIn[,1]==y,colnames(ladIn)==x]
+			c(FAD=fad,LAD=lad)
+			})
+		t(fadlad)
+		}
+		)
+	names(timeStack)<-conopRunNames
+	return(timeStack)
+	}
+
+#FADs/LADs, scaled to time, for all solutions, full dataset
+timeAll<-read.table("FAD-LAD-rescaled-all.txt",
+	header=TRUE,stringsAsFactors=FALSE)
+#convert to a stack of timeData matrices
+timeStack<-getStackTime(timeAll)
+
+#FADs/LADs, scaled to time, for all solutions, just pterocephaliids
+timePruned<-read.table("FAD-LAD-rescaled-ptero.txt",
+	header=TRUE,stringsAsFactors=FALSE)
+#convert to a stack of timeData matrices
+timeStackPruned<-getStackTime(timePruned)
+```
+
+```{r}
+#landmark data (PC scores)
+PCscores<-read.table("PCscores-pterocephaliid.txt",
+	header=TRUE,row.names=1,stringsAsFactors=FALSE)
+# fix mispelled species name in PC data
+rownames(PCscores)[rownames(PCscores)=="Stribambitus_bilobus"]<-"Strigambitus_bilobus"
+
+#minimum number of sampling events, full dataset
+minSampAll<-read.table("all-minsampling.txt",
+  header=FALSE,stringsAsFactors=FALSE)
+minSampAll<-minSampAll[order(minSampAll[,1]),]
+minSampAll<-setNames(minSampAll[,2],minSampAll[,1])
+
+
+#minimum number of sampling events, just pterocephaliids (30 taxa)
+minSampPruned<-read.table("ptero-minsampling.txt",
+	header=FALSE,stringsAsFactors=FALSE)
+minSampPruned<-minSampPruned[order(minSampPruned[,1]),]
+minSampPruned<-setNames(minSampPruned[,2],minSampPruned[,1])
+
+```
+
+# guessing sampling rates
+
+One way: we'll try to guess a prior range of values based on previous estimates (Table 1)
+
+Birth-death rates from any prior lit?
+    
+Looking at Table 1, we can see that sampling rate estimates from trilobites can have extreme variability depending on how focused our geographic/temporal study span is: a global Phanerozoic-scale study of genera reported `0.19-0.39 LMa^-1` (Foote and Sepkoski, 1997), while the sampling rate estimate from a single locality in Oklahoma has a sampling rate of `17.46 LMa^-1`(Foote and Raup, 1996).
+
+That gives us a little too much range...
+
+# getting sampling rates
+
+## range frequency distributions
+
+First, let's look at the duration frequency histogram for one set of ranges, using all species, and the pruned
+
+```{r}
+#let's just do it for first dataset in each
+
+hist(-apply(timeStack[[1]],1,diff),
+     main="Strat Duration Frequncies for All Species")
+
+hist(-apply(timeStackPruned[[1]],1,diff),
+     main="Strat Duration Frequncies for Pruned Species Set")
+```
+
+Well, those look like nice plots, actually. They are what we would expect.
+
+Some other variations
+
+```{r}
+# median durations
+hist(-apply(sapply(timeStackPruned,apply,1,diff),1,median),
+     breaks=15,main="",xlab="Median Durations (Pruned)")
+
+
+# all durations
+
+ hist(-sapply(timeStackPruned,apply,1,diff),
+      breaks=15,main="",xlab="All Durations Concatenated (Pruned)")
+```
+
+But how many taxa that have a single-occurrence (FAD=LAD)?
+
+```{r}
+# proportion of one-hits
+  # let's just do it for first dataset in each
+
+# testing if something is equal to zero is hard
+# so we'll say if under a tolerance value, its equal to zero
+
+tolerance<-0.01
+
+#all
+sum(-apply(timeStack[[1]],1,diff)<tolerance)/nrow(timeStack[[1]])
+
+#pruned
+sum(-apply(timeStackPruned[[1]],1,diff)<tolerance)/nrow(timeStackPruned[[1]])
+
+```
+
+Low-ish; about 10%. Sampling estimates may be high if estimated from range frequency distributions.
+
+## Range frequency analysis using maximum likelihood (Foote 1997)
+
+Let's do the range frequency distribution analyses anyway
+
+```{r}
+#all
+
+likeFunsAll<-lapply(timeStack,make_durationFreqCont)
+likeResAll<-lapply(likeFunsAll,optimPaleo)
+
+layout(1:2)
+hist(sapply(likeResAll,function(x) x$par[1]),main="Extinction")
+hist(sapply(likeResAll,function(x) x$par[2]),main="Sampling")
+
+all(sapply(likeResAll,function(x) x$par[2])==5)
+```
+
+We can see sampling rate is hitting its max limit: not unexpected given small number of one-hit taxa
+
+Let's move the upper bounds to 100
+
+```{r}
+for(i in 1:length(likeFunsAll)){
+	parUpper(likeFunsAll[[i]])<-c(5,100)
+	}
+likeResAll<-lapply(likeFunsAll,optimPaleo)
+
+layout(1:2)
+hist(sapply(likeResAll,function(x) x$par[1]),main="Extinction")
+hist(sapply(likeResAll,function(x) x$par[2]),main="Sampling")
+```
+
+That's obscene! those are gigantic sampling rates
+
+Now let's look at pruned data
+
+```{r}
+likeFunsPruned<-lapply(timeStackPruned,make_durationFreqCont)
+for(i in 1:length(likeFunsPruned)){
+	parUpper(likeFunsPruned[[i]])<-c(5,100)
+	}
+likeResPruned<-lapply(likeFunsPruned,optimPaleo)
+
+layout(1:2)
+hist(sapply(likeResPruned,function(x) x$par[1]),main="Extinction")
+hist(sapply(likeResPruned,function(x) x$par[2]),main="Sampling")
+
+
+```
+
+Overall, these values suggest an exceptionally well-sampled fossil record based on range frequency analysis
+
+The 'all' and 'pruned' numbers are not particularly different
+  - probably can just show pruned and say that the 'all' taxa sample showed very similar estimates
+  
+```{r}
+# median sampling
+median(sapply(likeResAll,function(x) x$par[2])) #all
+median(sapply(likeResPruned,function(x) x$par[2]))  #pruned
+
+# median extinction
+median(sapply(likeResAll,function(x) x$par[1])) #all
+median(sapply(likeResPruned,function(x) x$par[1]))  #pruned
+
+```
+
+# evaluating reality of sampling rate estimates
+
+We'll consider estimates from different angles by further constraining sampling rates in various ways
+
+## Obtain minimum sampling rates from CONOP data using Solow and Smith Method
+
+Count number of FADs and LADs across all sections = min # of sampling events
+Use Solow and Smith 1997 method to get minimum sampling rates (horizonSampRate)
+
+Let's do it for all the taxa!
+
+```{r message=FALSE}
+# let's get minimum sampling rate estimates using # of FADs+LADs
+# first need median durations
+
+medianDurAll<-lapply(timeStack,function(x) -apply(x,1,diff))
+medianDurAll<-sapply(rownames(timeStack[[1]]),function(x)
+  median(sapply(medianDurAll, function(y) y[names(y)==x])))
+
+horizonSampRate(nCollections = minSampAll, durations = medianDurAll)
+
+# For S&G: (from Melanie)
+
+sampRateAll<-sapply(timeStack, function(x)
+  horizonSampRate(nCollections = minSampAll, durations = (-apply(x,1,diff))))
+
+median(sampRateAll)
+
+hist(sampRateAll)
+```
+
+So sampling is very high, even at a minimum!
+
+(Note that these numbers are different than those circa-October due to the removal of sampling events for taxa that were sampled at a single horizon being counted as 'two' sampling events (when its really one). High sampling rates are very sensitive, and sampling rate estimation in general is very sensitive to the frequency of taxa with a small number of occurences (1,2, etc).)
+
+maybe it's lower for the pruned data (probably not)
+
+```{r message=FALSE}
+medianDurPruned<-lapply(timeStack,function(x) -apply(x,1,diff))
+medianDurPruned<-sapply(rownames(timeStackPruned[[1]]),function(x)
+  median(sapply(medianDurPruned, function(y) y[names(y)==x])))
+
+#if(!identical(names(medianDurPruned),names(minSampPruned))){stop()}
+
+horizonSampRate(nCollections = minSampPruned, durations = medianDurPruned)
+
+# from Mel
+
+sampRatePruned<-sapply(timeStackPruned, function(x)
+  horizonSampRate(nCollections = minSampPruned, durations = (-apply(x,1,diff))))
+
+median(sampRatePruned)
+
+hist(sampRatePruned)
+
+```
+
+ITS EVEN HIGHER!
+
+So, this tells us that the fossil record of these trilobites, in this region, is very well sampled: better sampled than the global fossil record of planktonic foraminifera (~2 Lmy-1).
+
+Wow
+
+...Okay, what's next?
+      
+## Evaluate sampling rates estimates to get expected duration and expected number of sampling events for taxa
+
+Like above, but in reverse: is this number of collection events reasonable for this dataset?
+
+Need some numbers:
+
+Looking at above analyses, I'd go in the ballpark of ~15 Lmy-1, maybe higher
+
+Extinction rate estimates from the range frequency distributions are probably valid estimates
+  So, about ~1-1.5 Lmy-1
+  
+These numbers look to be the same regardless of all or pruned dataset, suggesting that the study group on the cladogram doesn't have different dynamics than the total groups
+
+
+```{r}
+
+# use medians from pruned range frequency estimates
+
+extRate<-median(sapply(likeResPruned,function(x) x$par[1])) 
+sampRate<-median(sapply(likeResPruned,function(x) x$par[2]))
+
+
+# Average species duration
+1/extRate #per my
+
+# Average waiting time between collections with some particular species
+  # assuming species existed in original assemblage
+1/sampRate
+
+# average number of collections per average species duration
+(1/extRate)/(1/sampRate)
+
+```
+
+So we'd expect on average for most taxa to be sampled at 10 different collections (horizons) over their durations (due to exponential distribution, many more would be sampled at fewer collections, though, and a few would be sampled at a much higher number of horizons)
+
+```{r}
+mean(minSampAll)
+
+mean(minSampPruned)
+```
+
+Mel:
+We should be clear that this is based on the number of FADs/LADs that went towards estimates of durations (which is what we care about), even though in fact, many species were sampled across more horizons because they were sampled from more than two horizons at individual localities.
+
+We can also compare the expected species duration to the observed species durations...
+
+```{r}
+#Also, average durations calculated directly:
+
+mean(unlist(lapply(timeStack, function(x) -apply(x,1,diff))))
+
+mean(unlist(lapply(timeStackPruned, function(x) -apply(x,1,diff))))
+
+```
+
+Pretty close?? Suggests high sampling
+
+## expected proportion of taxa sampled
+
+Should be able to calculate expectation of proportion of taxa sampled using extinction and sampling rates
+    
+```{r}
+qsRate2Comp(sampRate, extRate)
+
+```
+    
+so 90% of all taxa in a given group (all, pruned, whatever) are expected to have been sampled in this dataset at least once from the fossil record
+
+That's crazy good
+
+## probability of sampling a taxon per million years
+
+```{r}
+
+sampProb<-sRate2sProb(sampRate, int.length = 1)
+sampProb
+
+```
+
+holy cow
+
+## probability of sampling a directly ancestral taxon under budding (Foote, 1996)
+
+Let's assume ext rate = orig rate
+
+```{r}
+probAnc(p=extRate, q=extRate, R=sampProb, mode = "budding", analysis = "directDesc", Mmax = 85,
+  nrep = 10000)
+
+```
+
+These values are very high. In fact, because p=q, we know they are *too* high, because the probability that any taxon goes extinct before having any descendants is 0.5, so this puts an upper limit on true probability value. So what has happened? Unfortunately, Foote's (1996) equations summing over an infinite number of descendants, but limited to finite iterations when calculated. So, at very high sampling probabilities, the equations can return values higher than 0.5 erroneously. This artifact can be seen in the results figured in Foote (1996). As our sampling rate is very close to 1, we have an excessive effect of that artifact.
+
+So functionally, we can assume that around half of the taxa are ancestors to the other half, if mainly budding cladogenesis occurred. It might be more with anagenesis (Foote's anagenesis model does not include extinction). We can also consider the possibility of indirect ancestors, which is calculatable with paleotree although this is unnecessary. The probability of being an indirect ancestor is constrainted to be greater than the probability of being a direct ancestor, but if p=q, we expect half of the taxa to have no descendants at all, so this value is also capped at 0.5 under the budding cladogenesis model. Thus, again, if p=q, then we expect about half of the taxa in this dataset to be ancestors given the very high sampling rates.
+
+# Empirical Comparisons
+
+
+## Compare empirical time-scaling example to other time-scaling methods
+
+OKAY! Let's time-scale some trees.
+
+We'll do a different tree for each time-stack, without random resolution of polytomies (there are none, so this should have no effect on anything. 
+
+We should try to follow Hopkins 2013 as closely as possible
+-used equal (but was the root pushed back at all?)
+  -looking at figure 2, some very small amount, I presume
+    - from Melanie: 1 meter = 0.03 Ma !
+  -We'll use very small values
+-unclear what time of observations was used
+  -We're going to time-scale to FADs
+
+Some simple trees first, with multiple var times 1 and 5 respectively:
+      
+```{r message=FALSE}
+
+# Basic (actually prob not needed except for node ages)
+
+treesBasic<-lapply(timeStackPruned,function(x)
+  timePaleoPhy(tree=tree, timeData=x, type = "basic", vartime = NULL, ntrees = 1,
+    randres = TRUE, timeres = FALSE, add.term = FALSE,
+    inc.term.adj = FALSE, dateTreatment = "firstLast", node.mins = NULL,
+    noisyDrop = TRUE, plot = FALSE)
+  )
+
+
+# MBL
+
+treesMBL1m<-lapply(timeStackPruned,function(x)
+  timePaleoPhy(tree=tree, timeData=x, type = "mbl", vartime = 0.03, ntrees = 1,
+    randres = TRUE, timeres = FALSE, add.term = FALSE,
+    inc.term.adj = FALSE, dateTreatment = "firstLast", node.mins = NULL,
+    noisyDrop = TRUE, plot = FALSE)
+  )
+
+treesMBL01<-lapply(timeStackPruned,function(x)
+  timePaleoPhy(tree=tree, timeData=x, type = "mbl", vartime = 0.1, ntrees = 1,
+    randres = TRUE, timeres = FALSE, add.term = FALSE,
+    inc.term.adj = FALSE, dateTreatment = "firstLast", node.mins = NULL,
+    noisyDrop = TRUE, plot = FALSE)
+  )
+
+treesMBL02<-lapply(timeStackPruned,function(x)
+  timePaleoPhy(tree=tree, timeData=x, type = "mbl", vartime = 0.2, ntrees = 1,
+    randres = TRUE, timeres = FALSE, add.term = FALSE,
+    inc.term.adj = FALSE, dateTreatment = "firstLast", node.mins = NULL,
+    noisyDrop = TRUE, plot = FALSE)
+  )
+
+# Equal 
+
+treesEqual1m<-lapply(timeStackPruned,function(x)
+  timePaleoPhy(tree=tree, timeData=x, type = "equal", vartime = 0.03, ntrees = 1,
+    randres = TRUE, timeres = FALSE, add.term = FALSE,
+    inc.term.adj = FALSE, dateTreatment = "firstLast", node.mins = NULL,
+    noisyDrop = TRUE, plot = FALSE)
+  )
+
+treesEqual01<-lapply(timeStackPruned,function(x)
+  timePaleoPhy(tree=tree, timeData=x, type = "equal", vartime = 0.1, ntrees = 1,
+    randres = TRUE, timeres = FALSE, add.term = FALSE,
+    inc.term.adj = FALSE, dateTreatment = "firstLast", node.mins = NULL,
+    noisyDrop = TRUE, plot = FALSE)
+  )
+
+treesEqual02<-lapply(timeStackPruned,function(x)
+  timePaleoPhy(tree=tree, timeData=x, type = "equal", vartime = 0.2, ntrees = 1,
+    randres = TRUE, timeres = FALSE, add.term = FALSE,
+    inc.term.adj = FALSE, dateTreatment = "firstLast", node.mins = NULL,
+    noisyDrop = TRUE, plot = FALSE)
+  )
+```
+
+For cal3, need to adjust the step.size to something smaller than 0.1, let's say 1 meter (=0.03 Ma)
+
+```{r message=FALSE}
+#Use both cal3 without and with ancestors
+#		Use rate values 'guesses' from above
+
+treescal3NoAnc<-lapply(timeStackPruned,function(x)
+  cal3TimePaleoPhy(tree=tree, timeData=x, ntrees = 1,
+    brRate=extRate, extRate=extRate, sampRate=sampRate,
+    anc.wt = 0, node.mins = NULL, dateTreatment = "firstLast",
+    FAD.only = TRUE, adj.obs.wt = TRUE, root.max = 200, step.size = 0.03,
+    randres = FALSE, noisyDrop = TRUE, tolerance = 1e-04,
+    diagnosticMode = FALSE, plot = FALSE)
+  )
+
+treescal3wAnc<-lapply(timeStackPruned,function(x)
+  cal3TimePaleoPhy(tree=tree, timeData=x, ntrees = 1,
+    brRate=extRate, extRate=extRate, sampRate=sampRate,
+    anc.wt = 1, node.mins = NULL, dateTreatment = "firstLast",
+    FAD.only = TRUE, adj.obs.wt = TRUE, root.max = 200, step.size = 0.03,
+    randres = FALSE, noisyDrop = TRUE, tolerance = 1e-04,
+    diagnosticMode = FALSE, plot = FALSE)
+  )
+```
+
+Now combine them
+
+```{r message=FALSE}
+#make a big list of all the time-scaled trees
+timeTrees<-list(basic=treesBasic,
+                equal1m=treesEqual1m,equal01=treesEqual01,equal02=treesEqual02,
+                MBL1m=treesMBL1m,MBL01=treesMBL01,MBL02=treesMBL02,
+                cal3NoAnc=treescal3NoAnc,cal3wAnc=treescal3wAnc)
+```
+
+Need checks
+
+```{r}
+
+#check to make sure that the tip.label and edge matrix is unchanged
+
+if(any(!sapply(timeTrees,sapply,function(x)
+  identical(x$Nnode,tree$Nnode)))){
+    stop("Nnode not constant")
+    }
+if(any(!sapply(timeTrees,sapply,function(x)
+  identical(x$tip.label,tree$tip.label)))){
+    stop("tip.label not constant")
+    }
+if(any(!sapply(timeTrees,sapply,function(x)
+  identical(x$edge,tree$edge)))){
+    stop("edge not constant")
+    }
+
+```
+
+```{r}
+#let's make sure that these did anything
+
+#compare their diversity curves
+
+for(i in 1:length(timeTrees)){
+  multiDiv(data=timeTrees[[i]], int.length = 0.1, plot = TRUE, split.int = TRUE,
+    drop.ZLB = TRUE, drop.cryptic = FALSE, extant.adjust = 0.01,
+    plotLogRich = FALSE, timelims = NULL, int.times = NULL,
+    plotMultCurves = FALSE, multRainbow = TRUE, divPalette = NULL,
+    divLineType = 1, main = names(timeTrees)[i])
+  }
+  
+```
+
+
+## Node age comparison
+
+
+The age of the root divergence is an easy target for comparing trees produced with different timescaling methods. In this case, it is important to remember that cal3 poorly constrains the root age, effectively putting a very flat (and perhaps *overly* flat) prior, and thus we expect that cal3 may produce root ages that can seem unrealistically early.
+
+```{r}
+rootAges<-lapply(timeTrees,sapply,function(x) x$root.time)
+```
+
+It's a little easier to look at these distributions as a single boxplot, really
+
+```{r}
+#look at all of them in one plot
+boxplot(rootAges,names=names(timeTrees),
+        ylab="Root Age",las=2,ylim=c(499,496))
+
+```
+
+Obviously, affected by equal's vartimes, but has biggest shifts under MBL (as expected)
+cal3 much like basic
+  given sampling rates, unlikely much difference among these
+
+do we need any additional examination of the divergence dates themselves?
+  any clades of particular interest?
+  
+Melanie suggests:
+  "maybe the appearance of sister genera Sigmocheilus and Pterocephalia, since there might be an uptick in rates at that time...I circled the relevant node in the tree figure above"
+  
+Okay, let's try it
+
+```{r}
+# since the tip and edge ordering is unchanged
+# all I have to do is find the clade's node number in tree
+
+# simple, helpful ape function getMRCA
+SigPteroNode<-getMRCA(tree,c("Sigmocheilus_grata","Pterocephalia_concava"))
+
+# get ages of this node
+SigPteroAges<-lapply(timeTrees,sapply,function(x)
+    dateNodes(x)[SigPteroNode])
+
+#look at all of them in one plot
+boxplot(SigPteroAges,names=names(timeTrees),
+        ylab="Age of SigmoCheilus-Pterocephalia Split",las=2,ylim=c(496,494))
+
+# are all equal estimates identical
+all(SigPteroAges[[2]]==SigPteroAges[[3]])
+all(SigPteroAges[[4]]==SigPteroAges[[3]])
+# yes
+
+```
+
+We can see the different 'equal' vartimes have no effect on this node's age, but MBL variations do
+
+cal3 more like basic than equal or MBL
+
+# Evolutionary Rate Estimation Comparisons : 
+
+## Ancestor-Descendant Euclidean Distances for All PCs (On Unit-Tree)
+
+From Mel:
+"Before I used all of the PCs, but 80% of the variation is summarized by the first two, and 95% by the first four, so we could easily justify just using those. Before I estimated per-branch rates by estimating ancestral scores and then calculating Euclidean distances between nodes and nodes/tips.  The basic pattern was one of decreasing rates through time. The data also suggests that rates increased with the appearance of the Pterocephaliinae subfamily even though they weren't as high as earlier in the clade history."
+
+So (based on Hopkins 2013):
+1) ancestral reconstruction for *all* PCs on a unit-length tree
+2) calculate per-branch rates on each time-scaled tree
+3) get correlation coefficient of per-branch rates versus branching time
+4) plot box plots of correlation coefficient (Kendall's Tau)
+  - Should be negative mainly (observed was -0.24, -0.37 for with A-D pairs)
+  
+```{r message=FALSE, warning=FALSE}
+
+#1) ancestral reconstruction for PCs 1,2,3,4 on a unit-length tree
+
+unitTree<-unitLengthTree(tree)
+
+#Treat PCs simultaneously (using Euclidean distance):
+#  which means it also very easy to just use all PCs:
+
+PCdata<-PCscores[tree$tip.label,]
+#get vectors of tip and node values
+pcAnc<-apply(PCdata,2,function(x) c(x,ace(x,phy=unitTree,method="ML")$ace))
+#get anc-desc contrasts
+pcADcon<-t(apply(tree$edge,1,function(x) abs(dist(rbind(pcAnc[x[1],],pcAnc[x[2],])))))
+
+# 2) calculate per-branch rates on each time-scaled tree
+rateList<-lapply(timeTrees,lapply,function(x)
+  cbind(brTime=dateNodes(x)[x$edge[,1]],
+        rate=as.vector(pcADcon/x$edge.length)))
+
+#3) get correlation coefficient of per-branch rates versus branching time for each set of time trees
+  #negate time (so negative correlation = rate is high for early branching times) 
+#use kendall's tau
+
+#Adjustments for just one column of rates:
+
+corrCoefList<-lapply(rateList,sapply,function(x)
+	cor.test(-x[,1],x[,2],method="kendall")$estimate)
+
+#4) plot box plots of correlation coefficient (Kendall's Tau)
+#  - Should be negative mainly (observed was -0.24, -0.37 for with A-D pairs)
+
+library(beanplot)
+
+beanplot(corrCoefList,ylab="Kendall's Tau",las=2,
+         main="All PCs (Euclidean A-D Dist, Unit-Tree)")
+
+
+```
+
+The thick dashed line is for tau=0
+
+Overall, cal3 values are around 0 for tau, which means not much support for early burst (negative correlation)
+
+zero-length branches may have had an effect on the above: they produce infinite rate values. Would be prudent to try the above with those values removed.
+
+Removing ZLBs essentially represents treating taxa that appear to be ancestors (as they are attached by ZLBs) as actual ancestors. This is a little different still from what Hopkins (2013) does to take apparent ancestor-descendant relationships into account
+
+
+```{r warning=FALSE}
+# we should do without the zblas (which have infinite rate values)
+
+cor.test.ignoreInf<-function(x,y,...){
+  if(length(x)!=length(y)){stop()}
+  select<-!is.infinite(x) & !is.infinite(y)
+  x<-x[select]
+  y<-y[select]
+  cor.test(x,y,...)
+  }
+
+corrCoefListNoInf<-lapply(rateList,sapply,function(x)
+         cor.test.ignoreInf(-x[,1],x[,2],method="kendall")$estimate)
+
+beanplot(corrCoefListNoInf,ylab="Kendall's Tau",las=2,
+         main="All PCs (Euclidean A-D Dist, Unit-Tree, No ZLBs)")
+
+```
+
+Slight differences once ZLBs are removed; Is there any reason to show the results with ZLBs? No.
+
+
+1) At small vartime, 'equal' shows strong support for early-burst. At large vartime, MBL shows support for late-burst. Otherwise, estimated correlations are fairly weak (no support for EB or LB)
+
+2) basic (and to some extent, cal3) has a lot of uncertainty
+
+Takeaway: choice of time-scaling method matters
+
+## Ancestor-Descendant Euclidean Distances for All PCs (On Time-Scaled Trees)
+
+But what if we did these analyses in a different way? Let's be honest here: reconstructing ancestral states on a unit-length tree is a bad idea: they probably don't correspond to the real ancestral trait values, so what does it mean to calculate the differences between nodes? (Maybe very little.)
+
+So we should try more advisable ways of getting at the rate of change and testing whether there was an early burst, such as fitting the ancestral reconstructions to time-scaled trees instead:
+
+```{r warning=FALSE}
+
+# ancestral trait reconstruction on the time-scaled trees
+
+ancDescConRateFun<-function(tr){
+  #reconstruct ancestors
+	pcAncTT<-apply(PCdata,2,function(x) c(x,ace(x,phy=tr,method="ML")$ace))
+  #get anc-desc contrasts
+	pcADconTT<-t(apply(tr$edge,1,function(x) abs(dist(rbind(pcAncTT[x[1],],pcAncTT[x[2],])))))
+	cbind(brTime=dateNodes(tr)[tr$edge[,1]],
+        		rate=as.vector(pcADconTT/tr$edge.length))
+}
+
+rateListTT<-lapply(timeTrees,lapply,ancDescConRateFun)
+
+```
+
+and get the correlation coefficients and plot it, without ZLBs (i.e. ignoring infinite values)
+
+```{r warning=FALSE}
+
+corrCoefListNoInfTT<-lapply(rateListTT,sapply,function(x)
+	cor.test.ignoreInf(-x[,1],x[,2],method="kendall")$estimate)
+
+beanplot(corrCoefListNoInfTT,ylab="Kendall's Tau",las=2,
+         main="All PCs (Euclidean A-D Dist, Scaled-Trees, No ZLBs)")
+abline(h=0,lty=10)
+
+```
+
+What do we see?
+
+1) All of the previous correlation estimates shift toward more positive values; using a unit-tree biased toward finding a zero or early-burst correlation. 
+
+2) Basic is most affected: use of a basic tree would suggest strong support for late-burst.
+
+3) cal3 now shows weak support for late-burst
+
+4) equal still shows (weakened) support for early-burst
+
+Again, being agnostic about which method is best, we can see the choice of the method makes a big difference! 
+
+## Model-Fitting of PCs 1-4 On Time-Scaled Trees
+
+Now let's do the best practice test for EB: use model-fitting of Early-Burst and look at parameter values.
+
+Slater suggests:
+"Your ability to say anything about EB vs BM is highly dependent on sample size, clade age relative to EB intensity, and noise. But if I had to pick a metric for the kind of analysis you are talking about, I'd probably suggest computing the number of rate half lives elapsed  over clade history, or T / ( ln(2) / a). We talk about this in Slater and Pennell (2014). Remember to allow for positive a values by changing the default bounds and to report as the number of rate doublings versus halvings."
+
+Okay, so let's try that. Let's estimate EB under ML & get 'a' rate change parameter
+
+To fit it to multiple PCs, we'll use mvMORPH; however all PCs is prohibitively slow
+-so we'll use PCs 1-4, which account for 95% of the variance in the dataset
+-decreased computation time by three orders of magnitude!!
+
+```{r warning=FALSE}
+
+# use package mvMORPH to analyze all PCs simultaneously
+
+library(mvMORPH)
+
+PCdata<-PCscores[tree$tip.label,1:4]
+
+ebParEst<-lapply(timeTrees,sapply,function(y){
+  aBound<-abs(log(10^(-5))/max(node.depth.edgelength(y)))
+  mvEB(tree=addTermBranchLength(y), data=PCdata,
+       param=list(low=-aBound, up=aBound),
+       echo=FALSE,diagnostic=FALSE)$beta
+  })
+
+# number of rate half lives elapsed  over clade history, or T / ( ln(2) / a)
+
+# T is duration of a clade's history (i.e. tree height)
+# but tree height varies because time-scaling varies
+# could make apparent differences that are untrue
+
+# let's go with a constant 5 Ma
+
+T<-5
+
+nHalfLife<-lapply(ebParEst,sapply,function(a)
+  T/(log(2)/a))
+
+beanplot(nHalfLife,ylab="",
+         las=2,
+         main="Expected Number of Rate Doublings (or Halvings) over 5 Ma\n for PCs 1-4")
+abline(h=0)
+  
+
+```
+
+Here, negative values represent halvings of the rate of change over 5 Ma, and positive values represent doublings. 
+
+1) Results are very different from A-D distance analyses following Hopkins (2013)
+
+2) Basic and cal3 both show support for possible halvings of rate, but with wide uncertainty
+
+3) All 'equal' and all but one MBL analysis suggest no support for EB or LB
+
+4) MBL with large vartime shows some support for LB
+
+(NB see Polly et al., 2013; Uyeda et al. 2015 on the effect of PCA on PCMs)
+
+# Ancestor-Descendant Relationships
+
+Examine ancestor-descendant relationships implied by cal3 with ancestors
+
+Discuss distinction between actual ancestor / anagenesis relationships versus apparent
+        (due to sampling)
+        
+The true amounts of anagenesis in a dataset will always be overestimated because of the truncation of ranges: budding can look like anagenesis (i.e. that an observed LAD is inferred to be ancestral, even though the taxon did not anagenetically become its descendant). True amount of anagenesis likely much smaller than observed, the amount of budding is greater than observed
+      
+Compare to Foote's ancestor probabilities (which are probably prob=0.5 for budding)
+
+## apriori pairs
+
+Do these match melanie's expectation for ancestor/descendant relationships?
+
+Ancestor-descendant pairs (anagenesis):
+
+Prehousia indenta-Prehousia alata
+Parahouria subequalis-Parahousia constricta
+Cernuolimbus laevifrons-Cernuolimbus depressus
+
+Ancestor-descendant pairs (budding cladogenesis):
+
+Sigmocheilus pogonipensis-Sigmocheilus flabellifer
+Sigmocheilus notha-Sigmocheilus pogonipensis
+Strigambitus transversus-Strigambitus utahensis
+Housia ovata-Housia vacuna
+Dicanthopyge quadrata-Dicanthopyge convergens
+Dicanthopyge convergens-Dicanthopyge reductus
+
+First thing we can do is look at how often certain taxa were inferred to be ancestors, and see if they match the ancestors listed above. Now, previous run of cal3 was with FAD as time of observation, which can limit inference of taxa as ancestors, so let's use LAD instead.
+
+Again, need to set step size to 1 meter (0.03 Ma)
+
+```{r message=FALSE}
+
+treesWithAnc<-lapply(timeStackPruned,function(x)
+  cal3TimePaleoPhy(tree=tree, timeData=x, ntrees = 1,
+    brRate=extRate, extRate=extRate, sampRate=sampRate,
+    anc.wt = 1, node.mins = NULL, dateTreatment = "firstLast",
+    FAD.only = FALSE, adj.obs.wt = TRUE, root.max = 200, step.size = 0.03,
+    randres = FALSE, noisyDrop = TRUE, tolerance = 1e-04,
+    diagnosticMode = FALSE, plot = FALSE)
+  )
+
+```
+
+Now let's analyze the ancestor-descendant information in these trees. First we'll need to convert the above ancestor-descendant pairs into something suitable for R to analyze:
+
+```{r}
+
+#let's convert a priori AD pairs into data objects
+
+ADpairAnag<-rbind(
+  c("Prehousia_indenta","Prehousia_alata"),
+  c("Parahousia_subequalis","Parahousia_constricta"),
+  c("Cernuolimbus_laevifrons","Cernuolimbus_depressus")
+  )
+
+ADpairBudd<-rbind(
+  c("Sigmocheilus_pogonipensis","Sigmocheilus_flabellifer"),
+  c("Sigmocheilus_notha","Sigmocheilus_pogonipensis"),
+  c("Strigambitus_transversus","Strigambitus_utahensis"),
+  c("Housia_ovata","Housia_vacuna"),
+  c("Dicanthopyge_quadrata","Dicanthopyge_convergens"),
+  c("Dicanthopyge_convergens","Dicanthopyge_reductus")  
+  )
+
+```
+
+cal3 does not reconstruct ancestor-descendant pairs, but rather just infers taxa to be ancestors of whatever clade they are sister to. We can try to figure out though what the closest earliest sister is of each ancestor and look at how often this pair occurs. 
+
+```{r}
+
+#The descendant isn't the earliest tip
+  # that's just the taxon with the earliest LAD
+	# we want the taxon with the earliest FAD
+
+ADpairs<-list()
+for(i in 1:length(treesWithAnc)){
+	phy<-treesWithAnc[[i]]
+	if(length(c(phy$anag.tips,phy$budd.tips))>0){
+		anc<-cbind(c(phy$anag.tips,phy$budd.tips),
+			c(rep("anag",length(phy$anag.tips)),
+			rep("budd",length(phy$budd.tips))))
+		propPart<-prop.part(phy)
+		momNodes<-sapply(anc[,1],function(x)
+			phy$edge[phy$edge[,2] ==
+				 which(phy$tip.label==x),1])
+		#find all desc of a node
+		sisters<-propPart[momNodes-Ntip(phy)]
+		#get their tip names
+		sisters<-lapply(sisters,function(x) phy$tip.label[x])
+		#remove the ancestor from the sisters
+		sisters<-lapply(1:nrow(anc),function(z)
+			sisters[[z]][sisters[[z]]!=anc[z,1]])
+		if(any(sapply(sisters,length)<1)){
+			stop("Some taxa have no sister taxa? Possible singleton nodes.")}
+		#okay now we finally have a named list of only sister taxa
+		#find sister with earliest FAD as the 'desc'
+		FADs<-lapply(sisters,function(z)
+			timeStackPruned[[i]][z,1,drop=FALSE])
+		desc<-sapply(FADs,function(z)
+			rownames(z)[z==max(z)][1])
+		ADpairs[[i]]<-cbind(anc=anc[,1],desc=desc,mode=anc[,2])
+		}}
+```
+
+```{r}
+#check it!
+if(any(sapply(ADpairs,function(x) any(table(x[,2])>1)))){
+	stop("some taxa listed as a descendent twice for same tree?!")}
+
+# From Melanie
+# check for ancestors
+# (since D. quadrata is sometimes ancestral to D. reductus
+  # and sometimes to D. convergens):
+
+if(any(sapply(ADpairs,function(x) any(table(x[,1])>1)))){
+stop("some taxa listed as an ancestor twice for same tree?!")}
+
+
+# From Melanie:
+# Also, interesting thing: Node ages where descendant buds
+# from ancestor are slightly older than the FADs of the descendants...
+# I would have expected them to be the same.
+# Example (see attached Rdata file): node55 connecting S. pogonipensis (ancestor)
+# and S. flabellifer (descendant) is 494.21 but FAD of S. flabellifer is 494.15.
+# Also see drafted tree at end of markdown. I used GetNodeAges from Claddis to get node ages. 
+
+# that's expected, actually
+
+# but we do want to make sure ancestor/descendant FADs
+  # are consistent with node dates
+
+testAncDating<-function(phy,timeData,step.size=0.1){
+	# test to make sure that ancestors don't
+	# have their FAD after the divergence
+	# due to step.size issues
+	# 
+	# and that descendants don't diverge before!
+	if(length(c(phy$anag.tips,phy$budd.tips))==0){
+		stop("No ancestors inferred!")}
+	anc<-c(phy$anag.tips,phy$budd.tips)
+	momNodes<-sapply(anc,function(x)
+		phy$edge[phy$edge[,2] ==
+			 which(phy$tip.label==x),1])	
+	nodeAges<-dateNodes(phy)
+	momAge<-nodeAges[momNodes]
+	ancFAD<-sapply(anc,function(x)
+		timeData[rownames(timeData)==x,1])
+	#
+	# now get desc FAD
+	propPart<-prop.part(phy)
+	#find all desc of a node
+	sisters<-propPart[momNodes-Ntip(phy)]
+	#get their tip names
+	sisters<-lapply(sisters,function(x) phy$tip.label[x])
+	#remove the ancestor from the sisters
+	sisters<-lapply(1:length(anc),function(z)
+		sisters[[z]][sisters[[z]]!=anc[z]])
+	#okay now we finally have a named list of only sister taxa
+	#find sister with earliest FAD as the 'desc'
+	descFAD<-sapply(sisters,function(z)
+		max(timeData[z,1]))
+	#
+	if(any((momAge-ancFAD)>step.size)){
+		stop("ancestors appearing after divergence")}
+	if(any((descFAD-momAge)>step.size)){
+		stop("descendants appearing before divergence")}
+	}
+
+for(i in 1:length(treesWithAnc)){
+  testAncDating(treesWithAnc[[i]],timeStackPruned[[i]],step.size=0.03)
+  }
+
+```
+
+Now that we've done that, we need to plot it. Somehow.
+
+```{r}
+
+#Now how to plot this information...
+
+#color the ancestors that are a priori presumed to be ancestors
+colorSet<-c("red","blue","darkgray")
+names(colorSet)<-c("Via Anagenesis","Via Budding","Not an Ancestor")
+
+#turn into a big matrix
+ADpairsMat<-ADpairs[[1]]
+for(i in 2:length(ADpairs)){
+  ADpairsMat<-rbind(ADpairsMat,ADpairs[[i]])
+	}
+ADpairsMat<-cbind(ADpairsMat,paste0(ADpairsMat[,1],"-\n",ADpairsMat[,2]))
+
+#get counts
+countPairAnag<-sort(table(ADpairsMat[ADpairsMat[,3]=="anag",4]))
+countPairBudd<-sort(table(ADpairsMat[ADpairsMat[,3]=="budd",4]))
+countPairAll<-sort(table(ADpairsMat[,4]))
+
+#now figure out which pairs were a priori anag or budd
+
+# a function
+colorPairsFun<-function(pairCount){
+	colorPairs<-numeric()
+	for(i in 1:length(pairCount)){
+		pair<-lapply(names(pairCount),strsplit,split="-\n")[[i]][[1]]
+		#if an anagenetic pair, 1, if budding, 2, if none, 3
+		matchAnag<-(pair[1]==ADpairAnag[,1] & pair[2]==ADpairAnag[,2])
+		matchBudd<-(pair[1]==ADpairBudd[,1] & pair[2]==ADpairBudd[,2])	
+		colorPairs[i]<-colorSet[3]
+		if(any(matchAnag)){colorPairs[i]<-colorSet[1]}
+		if(any(matchBudd)){colorPairs[i]<-colorSet[2]}
+		}
+	colorPairs
+	}
+
+#anagenesis
+oldPar<-par(no.readonly = T)
+par(mar=c(5,12,2.5,1))
+barplot(countPairAnag/length(treesWithAnc),las=1,
+	main="Inferred Anc-Desc Pairs via Anagenesis",
+	xlab="Proportion of cal3 Runs Placed as Anc-Desc Pair",
+	horiz=TRUE,col=colorPairsFun(countPairAnag))
+legend("bottomright",legend=names(colorSet),pch=16,pt.cex=2,col=colorSet)
+par(oldPar)
+```
+
+```{r fig.height=8}
+#budding
+oldPar<-par(no.readonly = T)
+par(mar=c(5,13,2.5,1),lheight=0.7)
+barplot(countPairBudd/length(treesWithAnc),las=1,
+	main="Inferred Anc-Desc Pairs via Budding",
+	xlab="Proportion of cal3 Runs Placed as Anc-Desc Pair",
+	horiz=TRUE,col=colorPairsFun(countPairBudd))
+legend("bottomright",legend=names(colorSet),pch=16,pt.cex=2,col=colorSet)
+par(oldPar)
+
+```
+
+(The labels are messed up in the markdown; need to resize figures for final.)
+
+In the above plots, the color coding indicates whether a taxon was a priori indicated to be an ancestor via either budding or anagenesis, or not indicated to be a likely ancestor at all. 
+
+```{r}
+# From Melanie:
+# No tree has all inferred anc-desc pairs but each tree has at a few, usually at least 9 or 10:
+
+# number of pairs
+length(unique(ADpairsMat[,4]))
+
+# number of pairs per tree
+table(unlist(lapply(ADpairs,function (x) dim(x)[1])))
+
+```
+
+Much of the time a taxon is treated an an ancestor, it has an a priori hypothesis of being an ancestor, although the analysis identifies more anagenetic ancestors that weren't considered previously as ancestors, and treats several a priori ananagenetic ancestors as, maybe, being more likely to be ancestors via budding.
+
+Almost all inferred ancestors are only ancestral, across all the trees, to a single descendant taxon. This is because cal3 can only infer ancestor-descendant pairings that are consistent with the input phylogeny. For example, taxa like S. pogonipensis are being placed as a budding ancestor to S. flabelifer because of they are sister taxa: there is no other taxon for it to be ancestral to. 
+
+In this analysis, the only variation that can occur in A-D pairs is when the relative order of FADs of sister taxa differ across CONOP alignments. For example, *Dicanthopyge quadrata* may be listed as ancestor (through budding) to both *D. reductus* and *D. convergens* depending entirely on which of the latter have the earliest FAD. Similarly, *Strigambitus utahensis* is generally a budding ancestor of *St. transversus*, but in a few trees this is reversed when *St. transversus* is the earlier appearing species.
+
+
+
+```{r}
+# more from Melanie
+
+# I thought it would be nice to see how many trees assigned
+  # each pair to anagenesis or budding all in one plot:
+
+u<-unique(ADpairsMat[,4])
+tb<-matrix(0,ncol=3,nrow=length(u))
+for (i in 1:length(u)){
+  t.temp<-table(ADpairsMat[ADpairsMat[,4]==u[i],3])
+  if (length(t.temp)==1){tb[i,2]<-t.temp}
+  if (length(t.temp)==2){tb[i,1:2]<-t.temp}
+}
+tb[,3]<-apply(tb,1,sum)
+row.names(tb)<-u
+tb<-tb[order(tb[,3]),]
+
+ADpairAnagLab<-paste0(ADpairAnag[,1],"-\n",ADpairAnag[,2])
+g1<-cbind(tb[match(ADpairAnagLab,row.names(tb)),3]/100,
+          match(ADpairAnagLab,row.names(tb)))
+ADpairBuddLab<-paste0(ADpairBudd[,1],"-\n",ADpairBudd[,2])
+g2<-cbind(tb[match(ADpairBuddLab,row.names(tb)),3]/100,
+          match(ADpairBuddLab,row.names(tb)))
+```
+
+```{r fig.height=8}
+# Now plot it
+oldPar<-par(no.readonly = T)
+par(mar=c(5,15,2.5,2))
+barX<-barplot(t(tb[,1:2])/100,horiz=T,
+              las=1,xlim=c(0,1.1),cex.names=0.75)
+text(y=barX[g1[,2]],x=g1[,1]+0.025,
+     labels='*',cex=3,col='red')
+text(y=barX[g2[,2]],x=g2[,1]+0.025,
+     labels='*',cex=3,col='blue')
+
+legend("bottomright",inset=c(0.1,0),bty='n',
+       legend=c('anag','budd','a-priori anag','a-priori budd'),
+       pch=c(16,16,8,8),pt.cex=c(2,2,1,1),pt.lwd=2,
+       col=c('gray25','gray75','red','blue'),cex=0.75)
+
+par(oldPar)
+
+```
+
+```{r fig.height=8}
+# More friendly colors, symbols
+oldPar<-par(no.readonly = T)
+par(mar=c(5,10,1,2),lheight=0.8)
+barX<-barplot(t(tb[,1:2])/100,horiz=T,
+	las=1,xlim=c(0,1.1),
+	cex.names=0.70)
+points(y=barX[g1[,2]],x=g1[,1]+0.05,
+     pch=16,cex=2,col='gray20')
+points(y=barX[g2[,2]],x=g2[,1]+0.05,
+     pch=16,cex=2,col='gray75')
+mtext(side=1,line=3.3,
+	text="Proportion of cal3 Runs Placed\n as Ancestor-Descendant Pair")
+
+
+legend("bottomright",inset=c(0,0),bty='n',
+       legend=c('Anagenetic AD Pair','Budding AD Pair',
+		'a-priori: Anagenetic AD Pair','a-priori: Budding AD Pair'),
+       pch=c(15,15,16,16),pt.cex=c(2,2,1.9,1.9),
+	 col=c('gray20','gray75','gray20','gray75'),cex=0.75)
+par(oldPar)
+```
+
+any a priori pairs never inferred to be ancestors?
+
+```{r}
+
+# what a priori pairs have no support?
+aPrioriPair<-rbind(ADpairAnag,ADpairBudd)
+
+# found pairs
+foundPair<-ADpairs[[1]]
+for(i in 2:length(ADpairs)){
+	foundPair<-rbind(foundPair,ADpairs[[i]])
+	}
+foundPair<-unique(foundPair[,1:2])
+
+# Which a priori pairs are among the found pairs
+notFoundPair<-sapply(1:nrow(aPrioriPair),function(x)
+	!any(sapply(1:nrow(foundPair),function(z)
+		aPrioriPair[x,1]==foundPair[z,1]
+			& aPrioriPair[x,2]==foundPair[z,2])))
+
+# number not found
+sum(notFoundPair)
+
+# which are not found
+aPrioriPair[notFoundPair,]
+
+```
+
+Okay, all a priori AD pairs are found. No worries!
+
+But what about how many AD pairs are anagenetic or cladogenetic out of the total?
+
+```{r}
+# proportion anagenetic
+sum(tb[,1])/sum(tb[,3])
+
+# proportion cladogenetic
+sum(tb[,2])/sum(tb[,3])
+
+```
+
+Less than 2% of inferred AD pairs are 'apparent' anagenetic, so its probably all budding cladogenesis
+
+woah
+
+
+```{r echo=FALSE, message=FALSE}
+# ENDCAP
+
+# Save Workspace for plotting later
+
+date<-paste(strsplit(as.character(Sys.Date()),"-")[[1]][c(2,3,1)],sep="",collapse="-")
+save.image(file=paste0("trilobite_workspace_",date,".Rdata"))
+
+# Hey R! Notify me when this finishes!
+
+library(mail)
+sendmail("david.bapst@sdsmt.edu", subject="Trilobite rMarkDown",
+         message="Job done!", password="rmail")
+```

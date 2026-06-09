@@ -11,13 +11,17 @@ from random import choice
 import smaps
 
 
+SUB_RATE  = 0.7
+JUMP_RATE = 0.0
+
+
 def print_memoryslice_2d(ms):
     for i in ms:
         print(list(i))
 
 
 # this version implements a proper anagenetic model, with changes computed at each budding point
-def sim_split_branch(node, qmats, ss, trait_ind = None):
+def sim_split_branch(node, qmats, ss, trait_ind = None, random_start = True):
     if node.istip:
         print("ERROR: trying to simulate bifurcation along sampled ancestor")
         sys.exit()
@@ -28,7 +32,10 @@ def sim_split_branch(node, qmats, ss, trait_ind = None):
     for i in trait_ind:
         if node.parent == None:
             par_tr = [0.0] * ( 2 ** ss )
-            par_st = choice([i for i in range(1, 2 ** ss)])
+            if random_start == False:
+                par_st = 1 #choice([i for i in range(1, 2 ** ss)])
+            else:
+                par_st = choice([i for i in range(1, 2 ** ss)])
             par_tr[par_st] = 1.0
             node.length = 0.0
             #node.disc_traits[i] = np.array(par_tr)
@@ -50,7 +57,18 @@ def sim_split_branch(node, qmats, ss, trait_ind = None):
         
         all_scen = sm.get_spltmat(ss)
         cur_scen = [j for j in all_scen[sim_state] if j[0] != 0]
-        sim_scen = choices(cur_scen,k=1)[0]
+        #print(sim_state)
+        #print(cur_scen)
+        weights = np.zeros(len(cur_scen))
+        l_sub = SUB_RATE 
+        l_sym = 1 - l_sub
+        weights[-1] = l_sym
+        for w in range(len(weights)-1):
+            weights[w] = l_sub / (len(weights) - 1)
+        #print(weights)
+        print("SPLIT")
+        exit()
+        sim_scen = choices(cur_scen,k=1,weights=weights)[0]
         desc0 = sim_scen[0]
         cur_traits = [0.0] * ( 2 ** ss )
         cur_traits[desc0] = 1.0
@@ -65,10 +83,12 @@ def sim_split_branch(node, qmats, ss, trait_ind = None):
 
 
 # this version implements a proper anagenetic model, with changes computed at each budding point
-def sim_along_branch2(node, qmats, ss, trait_ind = None):
+def sim_along_branch2(node, qmats, ss, trait_ind = None, l_sub = SUB_RATE, l_jump = JUMP_RATE):
     if trait_ind == None:
         trait_ind = range(len(node.disc_traits))
 
+    clado_diffs = 0
+    ana_diffs = 0
     for i in trait_ind:
         if node.parent == None:
             par_tr = [0.0] * ( 2 ** ss )
@@ -76,11 +96,34 @@ def sim_along_branch2(node, qmats, ss, trait_ind = None):
             par_tr[par_st] = 1.0
         else:
             par_tr = node.parent.budd_marginals[node.index_from_parent][i]
-
+        
         par_state = [j for j in range(len(par_tr)) if par_tr[j] == 1.0][0]
-        all_scen = bm.get_buddmat(ss)
-        cur_scen = [j for j in all_scen[par_state] if j != 0]
-        sim_scen = choices(cur_scen,k=1)[0]
+        smap = smaps.get_smap(ss)
+        npar = np.add.reduce(smap[par_state])
+
+        if npar > 1:
+            all_scen = bm.get_buddmat(ss)
+            cur_scen = [j for j in all_scen[par_state] if j != 0]
+            weights = np.zeros(len(cur_scen))
+            #l_sub = SUB_RATE 
+            l_sym = 1 - l_sub
+            weights[-1] = l_sym
+
+            for w in range(len(weights)-1):
+                weights[w] = l_sub / (len(weights) - 1)
+        elif npar == 1:
+            cur_scen = [j for j in range(len(smap)) if np.add.reduce(smap[j]) == 1]
+            weights = np.zeros(len(cur_scen))
+            par_ind = [j for j in range(len(cur_scen)) if cur_scen[j] == par_state][0]
+            #l_jump = JUMP_RATE
+            l_sym = 1 - l_jump
+            weights[par_ind] = l_sym
+            for j in range(len(weights)):
+                if j != par_ind:
+                    weights[j] = l_jump / float(len(weights) - 1)
+
+        sim_scen = choices(cur_scen,k=1,weights=weights)[0]
+        clado_diffs += (smap[par_state] != smap[sim_scen]).sum()
         midpoint = node.lower - ( (node.lower - node.upper) / 2. )
         timeslices = [node.lower] + [ch.lower for ch in node.children]
         midpoint_index = 0
@@ -102,6 +145,10 @@ def sim_along_branch2(node, qmats, ss, trait_ind = None):
             trans_probs = [k / sum(trans_probs) for k in trans_probs]
             states = [k for k in range(len(trans_probs))]
             sim_state = choices(states,k=1,weights=trans_probs)[0]
+            ana_diffs += ((smap[last_state] == 1) & (smap[sim_state] == 0)).sum() 
+            # this version below is if you just want to count _differences_ not reductions in num of states
+            #ana_diffs += (smap[last_state] != smap[sim_state]).sum()
+            
             timeseries.append(sim_state)
             cur_traits = [0.0] * ( 2 ** ss )
             cur_traits[sim_state] = 1.0
@@ -112,7 +159,7 @@ def sim_along_branch2(node, qmats, ss, trait_ind = None):
                 node.budd_marginals[j-2][i]=np.array(cur_traits)
             else:
                 node.disc_traits[i] = np.array(cur_traits)
-  
+    return clado_diffs, ana_diffs  
    
        
 def get_trait_dict(tree,ss):

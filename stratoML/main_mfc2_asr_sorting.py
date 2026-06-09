@@ -17,7 +17,7 @@ def label_internal_nodes(tree):
             n.label = lab
             count += 1
 
-def par_anc_state_polymorph(tree, ss):
+def par_anc_state_polymorph_DEP(tree, ss):
     node_cis = stratlike.bds_CIs(p,q,r,tree)
 
     nl_cis = {}
@@ -96,7 +96,189 @@ def par_anc_state_polymorph(tree, ss):
             outfl.write(""+","+curcode+","+str(n.lower)+","+str(n.upper)+","+"NA"+","+"NA"+","+"NA"+","+"NA"+","+parcode+","+str(hemi_dict[n.label])+"\n")
     outfl.close()
 
+def par_anc_state_polymorph(tree, ss):
+    node_cis = stratlike.bds_CIs(p,q,r,tree)
 
+    nl_cis = {}
+    for n in node_cis:
+        nl_cis[n.label] = node_cis[n]
+
+    node_cis = nl_cis
+
+    ncount = 0
+    hemi_dict = {}
+    unsort_dict = {}
+    uninf_dict  = {}
+    codes = {}
+    traits = {}
+    for n in tree.iternodes():
+        hemi_prop = "NA" 
+        nhemi = 0
+        nunsort = 0
+        nuninf = 0
+        par_lv_obs = n.timeslice_lv[n.midpoint_lv_index]
+        par_traits_obs = []
+        for chari in range(1,len(par_lv_obs)):
+            char = par_lv_obs[chari]
+            max_index = mfc.index_of_max(char)
+            par_traits_obs.append(max_index)
+        par_traits_obs = recode_trait_vec(par_traits_obs, ss)
+        traits[n] = par_traits_obs
+
+        if len(n.children) > 1:
+            desc_traits_all = []
+            for ch in n.children:
+                desc_traits_all.append([])
+                for desc in ch.leaves():
+                    desc_traits = []
+                    desc_lv = desc.timeslice_lv[desc.midpoint_lv_index]
+                    for chari in range(1,len(par_lv_obs)):
+                        char = desc_lv[chari]
+                        max_index = mfc.index_of_max(char)
+                        desc_traits.append(max_index)
+                    desc_traits = recode_trait_vec(desc_traits, ss)
+                    desc_traits_all[-1].append(desc_traits)
+
+            for i in range(len(par_traits_obs)):
+                anc_tr = set(par_traits_obs[i].strip().split("|"))
+                all_subtrees = []
+                for subtree in desc_traits_all:
+                    all_subtrees.append([])
+                    for desc_tr in subtree:
+                        curtr = desc_tr[i]
+                        splttr = set(curtr.strip().split("|"))
+                        from_anc = sorted(list(splttr.intersection(anc_tr)))
+                        if len(from_anc) > 0:
+                            all_subtrees[-1].append("|".join(from_anc))
+ 
+                if len(anc_tr) < 2:
+                    uninf = find_uninf(anc_tr, all_subtrees)
+                    if uninf:
+                        nuninf += 1
+                    continue
+               
+                discord = find_incomp_sort(all_subtrees)
+                if discord == True:
+                    nhemi += 1
+                else:
+                    unsorted = find_unsort(all_subtrees)
+                    if unsorted:
+                        nunsort += 1
+
+        denom = float(len(par_traits_obs) - nuninf )
+        if denom == 0:
+            denom = 1
+        hemi_prop = round((nhemi / denom) * 100)
+        unsort_prop = round((nunsort / denom) * 100)
+        print(n.label, hemi_prop, unsort_prop)
+        #n.label = "n"+str(ncount)
+        codes[n.label] = str(ncount)
+        ncount += 1
+        hemi_dict[n.label] = str(hemi_prop)
+        unsort_dict[n.label] = str(unsort_prop)
+
+    outfl = open(".".join(sys.argv[1].strip().split(".")[0:-1])+".tree_table.HEMI","w")
+    outfl.write("Name,Code,Start,End,FAD,LAD,2.5HPD,97.5HPD,Parent,HemiPercent,UnsortPercent\n")
+    for n in tree.inorder():
+        curcode = codes[n.label]
+        if n.parent != None:
+            parcode = codes[n.parent.label]
+            if n.istip and len(n.children) > 1:
+                outfl.write(n.label+","+curcode+","+str(n.lower)+","+str(n.upper)+","+str(n.strat[0])+","+str(n.strat[1])+","+str(node_cis[n.label][0])+","+str(node_cis[n.label][1])+","+parcode+","+str(hemi_dict[n.label])+","+str(unsort_dict[n.label])+"\n")
+            elif n.istip and len(n.children) < 2:
+                outfl.write(n.label+","+curcode+","+str(n.lower)+","+str(n.upper)+","+str(n.strat[0])+","+str(n.strat[1])+","+str(node_cis[n.label][0])+","+str(node_cis[n.label][1])+","+parcode+","+"NA"+","+"NA"+"\n")
+            else:
+                outfl.write(""+","+curcode+","+str(n.lower)+","+str(n.upper)+","+"NA"+","+"NA"+","+"NA"+","+"NA"+","+parcode+","+str(hemi_dict[n.label])+","+str(unsort_dict[n.label])+"\n")
+
+        else:
+            parcode = "NA"
+            outfl.write(","+curcode+","+str(n.lower)+","+str(n.upper)+","+str(n.strat[0])+","+str(n.strat[1])+","+str(node_cis[n.label][0])+","+str(node_cis[n.label][1])+","+parcode+","+"NA"+","+"NA"+"\n")
+            continue
+    outfl.close()
+
+    """
+    # uncomment to look at ancst recons
+    for n in tree.inorder():
+        curcode = codes[n.label]
+        c = " ".join(traits[n])
+        if n.istip:
+            label = n.label
+        else:
+            label = "n"+str(curcode)
+        print(">"+label)
+        print(c)
+    """
+
+def find_uninf(par_tr, all_subtrees):
+    discord = False
+    states = []
+    for j in range(len(all_subtrees)):
+        for k in range(len(all_subtrees)):
+            if j >= k:
+                continue
+            for st in all_subtrees[j]:
+                states.append(st)
+            for st in all_subtrees[k]:
+                states.append(st)
+    if len(list(set(states))) == 1:
+        discord = True
+    return discord
+
+
+def find_unsort(all_subtrees):
+    discord = False
+    for j in range(len(all_subtrees)):
+        for k in range(len(all_subtrees)):
+            if j >= k:
+                continue
+            num_poly = 0
+            st1 = []
+            for st in all_subtrees[j]:
+                spls = st.strip().split("|")
+                if len(spls) > 1:
+                    num_poly += 1
+                st1 += spls
+            st2 = []
+            for st in all_subtrees[k]:
+                spls = st.strip().split("|")
+                if len(spls) > 1:
+                    num_poly += 1
+                st2 += spls
+
+            st1 = set(st1)
+            st2 = set(st2)
+            shared = st1.intersection(st2)
+            #print(shared)
+            #shared = [char for char in shared if len(char.split("|"))>1]
+            #allst = st1.union(st2)
+            #allst = [char for char in allst if len(char.split("|"))>1]
+            #print(allst)
+            #unshared = set(allst) - set(shared)
+            if len(shared) > 0 and num_poly > 0:
+                discord = True
+                break
+    return discord
+
+
+def find_incomp_sort(all_subtrees):
+    discord = False
+    for j in range(len(all_subtrees)):
+        for k in range(len(all_subtrees)):
+            if j >= k:
+                continue
+            st1 = set(all_subtrees[j])
+            st2 = set(all_subtrees[k])
+            shared = st1.intersection(st2)
+            shared = [char for char in shared if len(char.split("|"))==1]
+            #print(shared)
+            allst = st1.union(st2)
+            allst = [char for char in allst if len(char.split("|"))==1]
+            unshared = set(allst) - set(shared)
+            #print(unshared)
+            if len(shared) > 0 and len(unshared) > 0:
+                discord = True
+                break
+    return discord
 
 if __name__ == "__main__":
     if len(sys.argv) != 6:

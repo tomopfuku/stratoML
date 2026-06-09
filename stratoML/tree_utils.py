@@ -8,6 +8,7 @@ from scipy.optimize import basinhopping
 import mfc
 import qmat
 import biparts as bp
+import smaps
 #import read_fasta, tree_reader
 
 
@@ -401,9 +402,11 @@ def random_spr(tree):
 def calc_tree_ll2(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.1]):
     stratlike.calibrate_brlens_strat(tree,0.2)
     #qmats = qmat.Qmat(0.01,0.05)
-    sort_children_by_age(tree)
-    init_budd_marginals(tree, len(ss), ss)
-    fix_obs_lv(tree)
+    #sort_children_by_age(tree)
+    #init_budd_marginals(tree, len(ss), ss)
+    #mono_prob = 0.75
+    #fix_obs_lv(tree, True, True, ss, mono_prob) 
+    #fix_obs_lv(tree)
     if tree_model == "bds":
         pqr_start = np.array([0.5,0.5,1.0])
         res = basinhopping(stratlike.bds_neg_ll,x0=pqr_start,niter=5,minimizer_kwargs={"method":"L-BFGS-B","args":(tree),"bounds":((0.00001,10),(0.00001,10),(0.00001,20))})
@@ -425,6 +428,7 @@ def calc_tree_ll2(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.1])
 
         #print(res_tr.x)
         traitll = -res_tr.fun
+        print(res_tr.x)
         tree_ll = traitll + bdsll
         nparam = 1.0 + 2.0
     else:
@@ -436,6 +440,37 @@ def calc_tree_ll2(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.1])
 
     return aic,traitll,bdsll
 
+def calc_tree_ll3(tree,qmats,ss,tree_model="bds",starting_mfc_rates = [0.1,0.1]):
+    stratlike.calibrate_brlens_strat(tree,0.2)
+    if tree_model == "bds":
+        pqr_start = np.array([0.1,0.1,1.0])
+        res = basinhopping(stratlike.bds_neg_ll,x0=pqr_start,niter=5,minimizer_kwargs={"method":"L-BFGS-B","args":(tree),"bounds":((0.00001,10),(0.00001,10),(0.00001,20))})
+        p = res.x[0]
+        q = res.x[1]
+        r = res.x[2]
+        stratlike.bds_dates(p,q,r,tree)
+        bdsll = stratlike.bds_loglike(p,q,r,tree)
+        res_tr = minimize(mfc.evaluate_m_l3,x0=np.array(starting_mfc_rates),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,5.0),(0.00001,5.0)))
+        traitll = -res_tr.fun
+        tree_ll = traitll + bdsll
+        nparam = 3.0 + 2.0
+    elif tree_model == "hr97":
+        res_st = minimize(stratlike.poisson_neg_ll,x0=np.array([1.0]),args=(tree),method="Nelder-Mead")
+        bdsll = -res_st.fun
+        res_tr = minimize(mfc.evaluate_m_l3,x0=np.array(starting_mfc_rates),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001,5.0),(0.00001,5.0)))
+
+        #print(res_tr.x)
+        traitll = -res_tr.fun
+        tree_ll = traitll + bdsll
+        nparam = 1.0 + 2.0
+    else:
+        print("stratigraphic range model not recognized. please type either \"bds\" or \"hr97\"")
+        sys.exit()
+
+    nparam += float(len([n for n in tree.iternodes()]) - 1)
+    aic = (2. * nparam) - (2. * tree_ll) 
+
+    return aic,traitll,bdsll
 
 
 def calc_tree_ll(tree,ss,tree_model="bds"):
@@ -842,17 +877,55 @@ def random_nni(tree):
     #    if le 
     # 
 
-def fix_obs_lv(tree, do_tips = True):
+def fix_obs_lv(tree, do_tips = True, marg_poly = False, ss = [], mono_prob = 0.75):
     for n in tree.iternodes():
         if len(n.children) == 0 and do_tips == False or n.istip == False:
             continue
-        #print(n.label,n.midpoint_lv_index, len(n.children))
         n.timeslice_lv[n.midpoint_lv_index] = n.disc_traits
+        if marg_poly == True:
+            if len(ss) == 0:
+                print("cannot marginalize over polymorphisms without specifying ss to fix_obs_lv()")
+                exit()
+            for i in range(len(n.disc_traits)):
+                cursite = n.disc_traits[i]
+                cur_k = ss[i]
+                smap = smaps.get_smap(cur_k)
+                curstates = [j for j in range(len(cursite)) if cursite[j] > 0.0]
+                if len(curstates) > 1:
+                    continue
+                    #print("error with trait {i}, multiple states detected for", n.label)
+                    #sys.exit()
+                curstate = curstates[0]
+                nstate = list(smap[curstate]).count(1)
+                keepstates = [curstate]
+                for j, tr in enumerate(smap):
+                    if j == curstate or list(tr).count(1) <= nstate:
+                        continue
+                    nmatch = 0
+                    for k in range(len(smap[curstate])):
+                        if smap[curstate][k] + tr[k] == 2:
+                            nmatch += 1
+                    if nmatch == nstate:
+                        keepstates.append(j)
+                if len(keepstates) < 2:
+                    continue
+                flatprob = (1.0 - mono_prob) / float(len(keepstates) - 1)
+                #print("BEFORE",list(n.timeslice_lv[n.midpoint_lv_index][i]))
+                for st in keepstates:
+                    if st == curstate:
+                        n.timeslice_lv[n.midpoint_lv_index][i][st] = mono_prob 
+                    else:
+                        n.timeslice_lv[n.midpoint_lv_index][i][st] = flatprob
+                #print("AFTER",list(n.timeslice_lv[n.midpoint_lv_index][i]))
+                #exit()
 
 def sort_children_by_age(tree):
     for n in tree.iternodes(1):
         if n.istip:
-            n.midpoint = (n.lower+n.upper) / 2.0
+            if n.strat[1] != 0.0:
+                n.midpoint = (n.lower+n.upper) / 2.0
+            else:
+                n.midpoint = 0.01
             if n.istip and len(n.children) > 0:
                 n.children.sort(key=lambda chd: chd.lower, reverse=True)
 
@@ -970,6 +1043,5 @@ def map_strat_to_tree(tree, flnm):
     
 
     stratlike.calibrate_brlens_strat(tree)
-
     sort_children_by_age(tree)
 

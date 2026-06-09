@@ -90,13 +90,13 @@ def get_total_char(trait_vec):
     return count
 
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
-        print("usage: "+ sys.argv[0]+ " <newick> <trait fasta file> <stratigraphic data> <stratigraphic model> <morphologic model>")
+    if len(sys.argv) != 7:
+        print("usage: "+ sys.argv[0]+ " <newick> <trait fasta file> <stratigraphic data> <stratigraphic model> <morphologic model> <correct_polymorph>")
         sys.exit()
     
-    traits,ss = read_fasta.read_fasta(sys.argv[2])
+    traits, ss = read_fasta.read_fasta(sys.argv[2])
     retraits  = read_fasta.recode_poly_traits(traits,ss)
-
+    poly_corr = int(sys.argv[-1])
     print("taxon nstates_par_obs nstates_par_obs nstates")   
     for line in open(sys.argv[1],"r"):
         nwk = line.strip().split()[-1]
@@ -104,15 +104,23 @@ if __name__ == "__main__":
         tree_utils.map_strat_to_tree(tree,sys.argv[3])    
         #stratlike.calibrate_brlens_strat(tree,0.3)
         tree_utils.map_tree_disc_traits(tree,retraits,ss)
-        tree_utils.fix_obs_lv(tree) 
-        #tree_utils.sort_children_by_age(tree)
-        #tree_utils.init_budd_marginals(tree,len(ss))
+        tree_utils.sort_children_by_age(tree)
+        tree_utils.init_budd_marginals(tree,len(ss), ss)
+
+        if poly_corr == 1:
+            mono_prob = 0.75
+            tree_utils.fix_obs_lv(tree, True, True, ss, mono_prob) 
+        elif poly_corr == 0:
+            tree_utils.fix_obs_lv(tree) 
+
 
         qmats = qmat.Qmat(0.02,0.01)
         #res_tr = minimize(mfc.evaluate_m_l2,x0=np.array([0.01,0.01]),args=(tree,qmats,ss),method="L-BFGS-B",bounds=((0.00001, 5.0),(0.00001, 5.0)))
         res_tr = minimize(mfc.evaluate_m_l2,x0=np.array([0.01,0.01]), args=(tree,qmats,ss), method="Powell")
+        #res_tr = minimize(mfc.evaluate_m_l2_mono_weight,x0=np.array([0.01,0.01,0.8]), args=(tree,qmats,ss), method="Powell")
         print("mfc rates",[float(i) for i in res_tr.x])
-        print(res_tr)
+        print(res_tr.x)
+        print(res_tr.fun)
         qmats = qmat.Qmat(res_tr.x[0],res_tr.x[1])
         mfc.compute_mfc2_ASRs(tree,qmats,ss) 
         #print(tree.timeslice_lv[0][1])

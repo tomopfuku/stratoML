@@ -22,7 +22,21 @@ extensions = [
         #extra_compile_args=['-fopenmp'],
         #extra_link_args=['-fopenmp'], 
    ),
-   Extension(
+    Extension(
+        "stratoML.glc_bd",
+        ["stratoML/glc_bd.pyx"],
+        include_dirs=[numpy.get_include()]
+        #extra_compile_args=['-fopenmp'],
+        #extra_link_args=['-fopenmp'], 
+   ),
+     Extension(
+        "stratoML.lam_mat",
+        ["stratoML/lam_mat.pyx"],
+
+        include_dirs=[numpy.get_include()]
+   ),
+
+    Extension(
         "stratoML.qmat",
         ["stratoML/qmat.pyx"],
 

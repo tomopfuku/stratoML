@@ -149,7 +149,7 @@ def max_scale_lv(node.Node n):
                 n.timeslice_lv[i][j][k] = curtr_lv[k] / max_val 
             n.scaling_factors[i][j] = max_val
  
-cdef double[:] max_scale_timeslice(double[:] anc_marg):
+cpdef double[:] max_scale_timeslice(double[:] anc_marg):
     cdef double[:] scaled_anc_marg
     cdef int i
 
@@ -160,7 +160,7 @@ cdef double[:] max_scale_timeslice(double[:] anc_marg):
 
     return scaled_anc_marg
 
-cdef bint check_mis(double[:] tr_vec):
+cpdef bint check_mis(double[:] tr_vec):
     cdef bint mis
     cdef int i
 
@@ -175,7 +175,7 @@ cdef bint check_mis(double[:] tr_vec):
             return mis
     return mis
 
-cdef double[:] missing_trait_vec(int cur_k):
+cpdef double[:] missing_trait_vec(int cur_k):
     cdef double[:] tr = np.zeros(128)
     cdef int j, nstate
 
@@ -185,6 +185,9 @@ cdef double[:] missing_trait_vec(int cur_k):
             break
         tr[j] = 1.0
     return tr
+
+
+
 
 """
 def calc_midpoint_ll(node.Node n, qmat.Qmat qmats, double dt, int chari, int cur_k):
@@ -366,7 +369,7 @@ def calc_midpoint_ll_single_trait(node.Node n, double[:, :] pmat, int cur_k, int
         last_like = missing_trait_vec(cur_k)
     else:
         last_like = n.timeslice_lv[n.midpoint_lv_index-1][chari]
-    
+
     for i in range(len(n.disc_traits[chari])):
         tr_prob = n.disc_traits[chari][i]
         if tr_prob == 0.0:
@@ -379,7 +382,6 @@ def calc_midpoint_ll_single_trait(node.Node n, double[:, :] pmat, int cur_k, int
             cond_prob = pmat[i][j]
             cond_prob *= last_like_val
             marg_prob += cond_prob
-
         n.timeslice_lv[n.midpoint_lv_index][chari][i] = marg_prob
     n.scaling_factors[n.midpoint_lv_index][chari] = max(n.timeslice_lv[n.midpoint_lv_index][chari]) # update scaling factor vector
     n.timeslice_lv[n.midpoint_lv_index][chari] = max_scale_timeslice(n.timeslice_lv[n.midpoint_lv_index][chari])
@@ -424,15 +426,11 @@ cdef budd_loglike_single_trait_marg(node.Node n, node.Node ch, double[:,:] p1, d
             scen_cond_like = 0.0
             for k in range(len(chd_tr)):
                 traitprob = chd_tr[k]
-                #print("TRAITPROB",traitprob)
-
-                #print("PMATVAL",p1[startst][k])
                 if k == int(2) ** cur_k: # NEED TO FIX
                     break
                 if traitprob == 0.0:
                     continue
                 scen_cond_like += p1[startst][k] * traitprob
-            #print("SUBLIKES:", ana_cond_like, scen_cond_like)
             scenario_like = ana_cond_like * scen_cond_like 
             
             scenario_like *= weight
@@ -466,29 +464,12 @@ cdef budd_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
             dt = n.midpoint - prev_time
             pmats1 = qmats.calc_p_mats(dt)
             calc_midpoint_ll(n, pmats1, ss) # need to compute the likelihood at the midpoint if we've hit the first child beyond the midpoint
-            """
-            if n.label == "Copelemur_australotutus":
-                #print(n.label,"disc traits")
-                #print(list(n.disc_traits[chari]))
-                print(n.label, "MIDPOINT",n.midpoint_lv_index)
-                print("CURMID:",n.midpoint)
-                print(n.children[0].label, "DESCLOWER:",n.children[0].lower)
-                print(n.children[0].label, n.children[0].parent_lv_index)
-                print(list(n.timeslice_lv[n.midpoint_lv_index][chari]))
-                exit()
-            """
             past_mid = True
             prev_time = n.midpoint
 
     for chd_i in reversed( range( len(n.children) ) ): # start with child farthest from the root
         ch = n.children[chd_i]
         
-        ## NEED TO COME BACK AND ADD get_child_dt() after debugging
-        #if len(ch.children) > 0 and ch.midpoint_lv_index != len(ch.children):
-        #    dt = ch.lower - ch.children[0].lower
-        #elif len(ch.children) > 0 and ch.midpoint_lv_index == len(ch.children) or len(ch.children) == 0:
-        #    dt = ch.lower - ch.midpoint
-
         dt = get_child_dt(ch)
         pmats1 = qmats.calc_p_mats(dt)
         dt = ch.lower - prev_time
@@ -513,7 +494,7 @@ cdef budd_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
             past_mid = True
             prev_time = n.midpoint
 
-cdef int count_nscenarios(long[:] inher):
+cpdef int count_nscenarios(long[:] inher):
     cdef int nscen, j
     nscen = 0
     for j in range(len(inher)):
@@ -868,22 +849,34 @@ def splitting_forward_probs(node.Node n, qmat.Qmat qmats,  long[:] ss):
         splitting_forward_probs_single_trait(n, pmats1, pmats2, ss[i], i)
 
 
-def get_child_dt(node.Node ch):
-    cdef double dt
+
+
+def get_child_dt(node.Node ch, bint return_range = False):
+    cdef double dt, start, end
 
     if ch.istip:
         if len(ch.children) > 0 and ch.midpoint_lv_index != len(ch.children):
             dt = ch.lower - ch.children[0].lower
+            start = ch.lower
+            end = ch.children[0].lower
         elif len(ch.children) > 0 and ch.midpoint_lv_index == len(ch.children) or len(ch.children) == 0:
             dt = ch.lower - ch.midpoint
+            start = ch.lower
+            end = ch.midpoint
+
     else:
+        start = ch.lower
+        end = ch.upper
         dt = ch.length
 
     if dt < 0.0000001:
         print(ch.label, dt)
         print("ERROR: found zero length in `mfc.get_child_dt()`")
         sys.exit()
-    return dt
+    if return_range == False:
+        return dt
+    else:
+        return np.array([start,end])
 
 def splitting_forward_probs_single_trait(node.Node n, double[:,:,:] pmats1, double[:,:,:] pmats2, int cur_k, int chari):
     cdef double traitprob, curp1, curp2, weight, dt, anc_prob, cum_anc_prob
@@ -1124,7 +1117,25 @@ cdef double calc_invar_ll_marg(node.Node tree, qmat.Qmat qmats):
 
     sublike = np.log(sublike) + sum_log_sf
     return sublike 
-    
+
+def evaluate_m_l2_mono_weight(double[:] params, node.Node tree, qmat.Qmat qmats,long[:] ss):
+    cdef node.Node n
+    cdef double treell, weight
+    cdef int maxstates = max(ss)
+    if params[0] < 0.0001 or params[1] < 0.0001 or params[2] < 0.0001 or params[2] > 1.0:
+        return 10000000000
+
+    weight = params[2]
+
+    tree_utils.fix_obs_lv(tree, True, True, ss, weight) 
+    qmats.update_all_qmats(params[0],params[1]) 
+
+    tree_utils.sort_children_by_age(tree)
+    treell = mfc2_treell(tree, qmats, ss)
+    return -treell
+
+
+
 def evaluate_m_l2(double[:] params, node.Node tree, qmat.Qmat qmats,long[:] ss):
     cdef node.Node n
     cdef double treell
@@ -1135,14 +1146,7 @@ def evaluate_m_l2(double[:] params, node.Node tree, qmat.Qmat qmats,long[:] ss):
 
     qmats.update_all_qmats(params[0],params[1]) 
 
-    #for n in tree.iternodes():
-    #    n.update_pmat(qmats, maxstates)
-
-
-    #print("ABOUT TO SORT")
     tree_utils.sort_children_by_age(tree)
-    #print("SORTED")
-    #sys.exit()
     treell = mfc2_treell(tree, qmats, ss)
     return -treell
 

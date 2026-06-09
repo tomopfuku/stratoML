@@ -22,11 +22,12 @@ tree = tree_reader.read_tree_string(nwk)
 tree_utils.map_strat_to_tree(tree,sys.argv[2]) 
 num_traits = int(sys.argv[3])
 ss = int(sys.argv[4])
-for rep in range(100):
+NREP = 1
+for rep in range(NREP):
     rand_m = 0.02 + ( random() * (0.2 - 0.01) )
-    #rand_m = 0.05
+    rand_m = 0.05
     #rand_f = 0.01 + ( random() * (0.1 - 0.01) )
-    rand_f = rand_m
+    rand_f = rand_m #* 3
     qmats = qmat.Qmat(rand_m,rand_f)
     stratlike.calibrate_brlens_strat(tree,0.3)
   

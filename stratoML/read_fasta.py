@@ -63,7 +63,10 @@ def read_fasta(flnm):
     state_spaces = [2]
     for i in range(len(allstates)):
         curst = set(allstates[i])
-        state_spaces.append(max(curst)+1)
+        cur_k = max(curst) + 1
+        if cur_k < 2:
+            cur_k = 2
+        state_spaces.append(cur_k)
     return traits, np.array(state_spaces,dtype=int)
 
 

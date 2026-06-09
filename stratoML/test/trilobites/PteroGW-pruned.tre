@@ -1,0 +1,38 @@
+#NEXUS
+[R-package APE, Fri Oct 23 10:55:49 2015]
+
+BEGIN TREES;
+	TRANSLATE
+		1	Aphelaspis_haguei,
+		2	Aphelaspis_subditus,
+		3	Aphelaspis_longispina,
+		4	Housia_ovata,
+		5	Housia_vacuna,
+		6	Tumicephalus_depressus,
+		7	Parahousia_constricta,
+		8	Parahousia_subequalis,
+		9	Prehousia_alata,
+		10	Prehousia_indenta,
+		11	Prehousia_impolita,
+		12	Prehousia_diverta,
+		13	Prehousia_prima,
+		14	Cernuolimbus_depressus,
+		15	Cernuolimbus_laevifrons,
+		16	Cernuolimbus_granulosus,
+		17	Cernuolimbus_orygmatos,
+		18	Pterocephalia_concava,
+		19	Pterocephalia_sanctisabae,
+		20	Pterocephalia_elongata,
+		21	Sigmocheilus_flabellifer,
+		22	Sigmocheilus_pogonipensis,
+		23	Sigmocheilus_notha,
+		24	Sigmocheilus_grata,
+		25	Strigambitus_bilobus,
+		26	Strigambitus_transversus,
+		27	Strigambitus_utahensis,
+		28	Dicanthopyge_convergens,
+		29	Dicanthopyge_reductus,
+		30	Dicanthopyge_quadrata
+	;
+	TREE * UNTITLED = [&R] (1,(2,(((3,(((((4,5),6),(7,8)),(((9,10),11),12)),13)),((((14,15),16),17),((((18,19),20),(((21,22),23),24)),(25,(26,27))))),((28,29),30))));
+END;

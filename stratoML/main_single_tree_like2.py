@@ -25,9 +25,12 @@ if __name__ == "__main__":
         tree_utils.map_strat_to_tree(tree,sys.argv[3])    
         #stratlike.calibrate_brlens_strat(tree,0.3)
         tree_utils.map_tree_disc_traits(tree,retraits,ss)
-        tree_utils.fix_obs_lv(tree) 
-        #tree_utils.sort_children_by_age(tree)
-        #tree_utils.init_budd_marginals(tree,len(ss))
+        tree_utils.sort_children_by_age(tree)
+        tree_utils.init_budd_marginals(tree,len(ss), ss)
+
+        mono_prob = 0.6
+        tree_utils.fix_obs_lv(tree, True, True, ss, mono_prob) 
+        #tree_utils.fix_obs_lv(tree) 
         qmats = qmat.Qmat(0.01,0.05)
 
         for n in tree.iternodes():

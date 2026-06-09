@@ -4,7 +4,10 @@ cimport numpy as np
 np.import_array()
 cimport cython
 import smaps
-import mfc
+import mfc, bd
+import lam_mat
+cimport lam_mat
+from scipy.linalg import expm
 #@cython.wraparound(False)
 #@cython.boundscheck(False)
 
@@ -35,6 +38,63 @@ cdef class Qmat:
         p = mfc.calc_p_matrix(self.get_qmat(ss),t)
         return p
 
+
+    def calc_m_mats(self, double dt, lam_mat.lam_mat lam_mats, double[:] bds_rates, int max_states = 7):
+        cdef double[:,:,:] mats = np.zeros((int(max_states)-1,int(2**max_states),int(2**max_states)),dtype=np.double)
+        cdef double[:,:] curm, curq, curlam
+        #cdef double[:] lam_tot = np.zeros(N, dtype=np.float64)
+        cdef double diag_penalty, diag_reward, lam_g, diag
+        cdef int i,j,k#, N = int(2**max_states)
+        E_t = bd.calc_extinction_prob_eq(bds_rates[0], bds_rates[1], bds_rates[2])
+
+        for i in range(2,max_states+1):
+            #curm = np.zeros((N, N), dtype=np.float64)
+            curq = np.asarray(self.get_qmat(i))
+            curlam = np.asarray(lam_mats.get_ratemat(i))
+            curm = curq + ( curlam * E_t)
+            for j in range(len(curm)):
+                if j == 0:
+                    diag = 0.0
+                else:
+                    diag = curq[j, j] - (bds_rates[0] + bds_rates[1] + bds_rates[2]) + ( bds_rates[0] * E_t )
+                curm[j, j] = diag
+
+            curM = expm(np.asarray(curm) * dt) 
+            for j in range(len(curM)):
+                for k in range(len(curM[j])):
+                    mats[i-2][j][k] = curM[j, k]
+        return mats
+
+
+    def calc_m_mats_loop(self, double dt, lam_mat.lam_mat lam_mats, double[:] bds_rates, int max_states = 7):
+        cdef double[:,:,:] mats = np.zeros((int(max_states)-1,int(2**max_states),int(2**max_states)),dtype=np.double)
+        cdef double[:,:] curm, curq, curlam
+        cdef double diag_penalty, diag_reward
+        cdef int i,j,k, N = int(2**max_states)
+        cdef double[:] lam_tot = np.zeros(N, dtype=np.float64)
+        E_t = bd.calc_extinction_prob_eq(bds_rates[0], bds_rates[1], bds_rates[2])
+
+        for i in range(2,max_states+1):
+            curm = np.zeros((N, N), dtype=np.float64)
+            curq = self.get_qmat(i)
+            curlam = lam_mats.get_ratemat(i)
+            lam_tot = np.zeros(N, dtype=np.float64)
+            for j in range(N):
+                for k in range(N):
+                    lam_tot[j] += curlam[i,j]
+            #curm = self.get_qmat(i) + ( lam_mats.get_ratemat(i).T * E_t )
+            for j in range(N):
+                diag_penalty = -(lam_tot[i] + bds_rates[1] + bds_rates[2])
+                diag_reward = lam_tot[i] * E_t
+                for k in range(N):
+                    if k > 2**i or j > 2**i:
+                        continue
+                    curm[j, k] = curq[j, k] + ( curlam[j, k] * E_t )
+                    if j == k:
+                        curm[j, k] += diag_penalty + diag_reward
+        return mats
+
+
     def calc_p_mats(self, double t, int max_states = 7):
         cdef double[:,:,:] mats = np.zeros((int(max_states)-1,int(2**max_states),int(2**max_states)),dtype=np.double)
         cdef double[:,:] curp
@@ -55,7 +115,7 @@ cdef class Qmat:
         cdef int i, j, ii, ndiff, nrow, nsti, nstj 
         cdef double[:,:] qmat = self.get_qmat(nstates)
         cdef long[:,:] smap = smaps.get_smap(nstates)
-        cdef double scalar = 2.0 / float(nstates)
+        cdef double scalar = 1.0 #2.0 / float(nstates)
 
         nrow = len(qmat)
         for i in range(nrow):
