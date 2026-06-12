@@ -1,0 +1,11 @@
+--- Convergence Diagnostics ---
+Autocorrelation time for each parameter: [22.94055263 22.38536982 21.49561867]
+  Parameter 0: Chain length looks sufficient (> 50 * tau).
+  Parameter 1: Chain length looks sufficient (> 50 * tau).
+  Parameter 2: Chain length looks sufficient (> 50 * tau).
+Mean acceptance fraction: 0.407
+
+Successfully saved 29934 flat samples to 'dend.fa_mcmc_samples.csv'.
+Param 0: 0.3517 (+0.0447 / -0.0399)
+Param 1: 0.5753 (+0.1066 / -0.0974)
+Param 2: 0.0436 (+0.0197 / -0.0183)

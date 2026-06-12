@@ -1,0 +1,11 @@
+--- Convergence Diagnostics ---
+Autocorrelation time for each parameter: [24.75446144 26.31834753 24.96642677]
+  Parameter 0: Chain length looks sufficient (> 50 * tau).
+  Parameter 1: Chain length looks sufficient (> 50 * tau).
+  Parameter 2: Chain length looks sufficient (> 50 * tau).
+Mean acceptance fraction: 0.406
+
+Successfully saved 29934 flat samples to 'botryocrinidae_gahn_kammer.form.fa_mcmc_samples.csv'.
+Param 0: 0.0137 (+0.0047 / -0.0034)
+Param 1: 0.0236 (+0.0109 / -0.0083)
+Param 2: 0.0817 (+0.0119 / -0.0117)

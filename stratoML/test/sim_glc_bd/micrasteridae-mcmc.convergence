@@ -1,0 +1,11 @@
+--- Convergence Diagnostics ---
+Autocorrelation time for each parameter: [ 21.73935981 717.59307314  34.3863953 ]
+  Parameter 0: Chain length looks sufficient (> 50 * tau).
+  Parameter 1: Chain length looks sufficient (> 50 * tau).
+  Parameter 2: Chain length looks sufficient (> 50 * tau).
+Mean acceptance fraction: 0.408
+
+Successfully saved 29934 flat samples to 'micrasteridae-character_matrix.fa_mcmc_samples.csv'.
+Param 0: 0.0305 (+0.0047 / -0.0042)
+Param 1: 0.0716 (+0.0229 / -0.0190)
+Param 2: 0.0554 (+0.0092 / -0.0111)

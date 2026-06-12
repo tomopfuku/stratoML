@@ -1,5 +1,13 @@
-import sys
 import os
+
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+os.environ.setdefault("BLIS_NUM_THREADS", "1")
+
+import sys
 import multiprocessing as mp
 from contextlib import contextmanager
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
@@ -24,6 +32,13 @@ _worker_ss = None
 _worker_pqr_start = None
 MCMC_SAVE_DISCARD = 100
 MCMC_SAVE_THIN = 15
+MCMC_TARGET_ACCEPTANCE = 0.4
+MCMC_ADAPT_CHUNK = 500
+MCMC_ADAPT_RATE = 0.7
+MCMC_MIN_STRETCH = 1.05
+MCMC_MAX_STRETCH = 5.0
+MCMC_STRETCH_WEIGHT = 0.7
+MCMC_DE_WEIGHT = 0.3
 
 
 def init_worker(tree, qmats, lam_mats, ss, pqr_start):
@@ -147,6 +162,65 @@ def estimate_saved_generations(nsamples, nwalkers):
     return MCMC_SAVE_DISCARD + saved_steps * MCMC_SAVE_THIN
 
 
+def adjust_stretch_scale(cur_scale, acceptance_rate):
+    factor = math.exp(MCMC_ADAPT_RATE * (acceptance_rate - MCMC_TARGET_ACCEPTANCE))
+    return min(MCMC_MAX_STRETCH, max(MCMC_MIN_STRETCH, cur_scale * factor))
+
+
+def get_tunable_stretch_move(sampler):
+    for move in sampler._moves:
+        if isinstance(move, emcee.moves.StretchMove):
+            return move
+    return None
+
+
+def run_adaptive_mcmc(sampler, p0, num_gen, previous_samples):
+    state = None
+    stretch_move = get_tunable_stretch_move(sampler)
+    stretch_scale = stretch_move.a if stretch_move is not None else None
+    completed = 0
+    window_start = 0
+    accepted_before = np.array(sampler.backend.accepted, dtype=np.float64)
+
+    for state in sampler.sample(
+        p0,
+        iterations=num_gen,
+        progress=True,
+        skip_initial_state_check=previous_samples is not None,
+    ):
+        completed += 1
+        if completed % MCMC_ADAPT_CHUNK != 0 and completed != num_gen:
+            continue
+
+        accepted_after = np.array(sampler.backend.accepted, dtype=np.float64)
+        window_size = completed - window_start
+        block_acceptance = float(np.sum(accepted_after - accepted_before)) / float(window_size * sampler.nwalkers)
+        if stretch_move is None:
+            print(
+                f"MCMC proposal tracking: generations {window_start + 1}-{completed}, "
+                f"acceptance={block_acceptance:.3f}"
+            )
+        else:
+            new_stretch_scale = adjust_stretch_scale(stretch_scale, block_acceptance)
+            print(
+                f"MCMC proposal tuning: generations {window_start + 1}-{completed}, "
+                f"acceptance={block_acceptance:.3f}, stretch a={stretch_scale:.3f}->{new_stretch_scale:.3f}"
+            )
+            stretch_scale = new_stretch_scale
+            stretch_move.a = stretch_scale
+        accepted_before = accepted_after
+        window_start = completed
+
+    return state
+
+
+def build_mcmc_moves():
+    return [
+        (emcee.moves.StretchMove(a=2.0), MCMC_STRETCH_WEIGHT),
+        (emcee.moves.DEMove(), MCMC_DE_WEIGHT),
+    ]
+
+
 if __name__ == "__main__":
     if len(sys.argv) not in (7, 8):
         print("usage: "+ sys.argv[0]+ " <newick> <trait fasta file> <stratigraphic data> <stratigraphic model> <morphologic model> <num_gen> [previous mcmc samples csv]")
@@ -230,12 +304,14 @@ if __name__ == "__main__":
         # 3. Run the MCMC
         print("Running MCMC...")
         with mcmc_pool(tree, qmats, lam_mats, ss, pqr_start, nwalkers) as pool:
+            mcmc_moves = build_mcmc_moves()
             if pool is None:
                 sampler = emcee.EnsembleSampler(
                     nwalkers,
                     ndim,
                     log_probability,
                     args=(tree, qmats, lam_mats, ss, pqr_start),
+                    moves=mcmc_moves,
                 )
             else:
                 sampler = emcee.EnsembleSampler(
@@ -243,13 +319,9 @@ if __name__ == "__main__":
                     ndim,
                     log_probability_worker,
                     pool=pool,
+                    moves=mcmc_moves,
                 )
-            sampler.run_mcmc(
-                p0,
-                num_gen,
-                progress=True,
-                skip_initial_state_check=previous_samples is not None,
-            )
+            run_adaptive_mcmc(sampler, p0, num_gen, previous_samples)
         
         # --- 1. Convergence Analysis ---
         print("\n--- Convergence Diagnostics ---")

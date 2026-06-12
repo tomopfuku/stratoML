@@ -84,6 +84,7 @@ if __name__ == "__main__":
         #p = q = 0.1
         pqr_start = [p,q,r]
         print("BDS rates:",pqr_start)
+        exit()
         sub_frac = 0.5
         jump_frac = 0.0
         lsub = p * sub_frac 
