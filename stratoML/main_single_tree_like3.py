@@ -145,7 +145,36 @@ if __name__ == "__main__":
         print("LOSS:", lossr)
         print("LAMBDA SUB:", lsub)
         print("no jump AIC:",m1_aic)
+
+        res_no_clado = differential_evolution(
+            glc_bd.evaluate_m_l3_no_clado,
+            bounds=((1e-5, 5.0), (1e-5, 5.0)),
+            args=(tree, qmats, lam_mats, ss, np.array(pqr_start)),
+            strategy='best1bin',
+            popsize=15,
+            mutation=(0.5, 1),
+            recombination=0.7,
+            tol=0.01,
+            workers=1
+        )
+        no_clado_k = 2
+        no_clado_ll = -res_no_clado.fun
+        no_clado_aic = (2. * no_clado_k) - (2. * no_clado_ll)
+
+        print("no cladogenesis params:", res_no_clado.x)
+        print("no cladogenesis AIC:", no_clado_aic)
+        min_aic = min(m1_aic, no_clado_aic)
+        clado_weight_unnorm = math.exp(-0.5 * (m1_aic - min_aic))
+        no_clado_weight_unnorm = math.exp(-0.5 * (no_clado_aic - min_aic))
+        weight_sum = clado_weight_unnorm + no_clado_weight_unnorm
+        clado_aic_weight = clado_weight_unnorm / weight_sum
+        no_clado_aic_weight = no_clado_weight_unnorm / weight_sum
+        print("cladogenesis AIC weight:", clado_aic_weight)
+        print("no cladogenesis AIC weight:", no_clado_aic_weight)
         #tr_len = get_tree_length(tree)
+
+
+
         exit()
         
         t1 = time.time()

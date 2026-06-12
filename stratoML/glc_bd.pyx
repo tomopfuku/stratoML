@@ -746,3 +746,26 @@ def evaluate_m_l3(double[:] params, node.Node tree, qmat.Qmat qmats, lam_mat.lam
 
     #print(lam, lsub_w, gainr, lossr, -treell)
     return -treell
+
+
+def evaluate_m_l3_no_clado(double[:] params, node.Node tree, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long[:] ss, double[:] bds_rates):
+    cdef node.Node n
+    cdef double treell
+    cdef int maxstates = max(ss)
+
+    for i in range(len(params)):
+        if params[i] < 0.00001:
+            return 10000000000
+
+    gainr = params[0]
+    lossr = params[1]
+    qmats.update_all_qmats(gainr, lossr)
+
+    lam = bds_rates[0]
+    lsub = 0.0
+    lam_mats.update_all_mats(lam, lsub)
+
+    tree_utils.sort_children_by_age(tree)
+    treell = mfc3_treell(tree, qmats, lam_mats, ss, bds_rates)
+
+    return -treell
