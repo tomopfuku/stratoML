@@ -22,13 +22,13 @@ cdef class Qmat:
         self.fivestate = np.zeros((2**5,2**5),dtype=np.double)
         self.sixstate = np.zeros((2**6,2**6),dtype=np.double)
         self.sevenstate = np.zeros((2**7,2**7),dtype=np.double)
-        self.init_q_matrices(start_m,start_l)
+        self.init_q_matrices(start_m, start_l)
 
     def init_q_matrices(self, double m, double l):
         cdef int i
-        #cdef double[:,:] qmat
-        #cdef long[:,:] smap
-        for i in range(2,8): ## TODO: need to increase stop to 8 after implementing full 7 state smaps
+        # cdef double[:,:] qmat
+        # cdef long[:,:] smap
+        for i in range(2,8): ## need to increase stop to 8 after implementing full 7 state smaps
             #smap = smaps.get_smap(i)
             #qmat = self.get_qmat(i)
             self.update_mut_loss(i,m,l)
@@ -44,22 +44,18 @@ cdef class Qmat:
         cdef np.ndarray[np.float64_t, ndim=2] curm = np.asarray(curq).copy()
         cdef np.ndarray[np.float64_t, ndim=2] curM
         cdef double E_t = bd.calc_extinction_prob_eq(bds_rates[0], bds_rates[1], bds_rates[2])
-        cdef double diag
         cdef int j, k, nstates = 1 << ss
 
         for j in range(nstates):
             for k in range(nstates):
-                curm[j, k] += curlam[j, k] * E_t
+                curm[j, k] += ( curlam[j, k] * 0.5 * E_t ) 
+            curm[j, j] = 0.0
 
-            if j == 0:
-                diag = 0.0
-            else:
-                diag = curq[j, j] - (bds_rates[0] + bds_rates[1] + bds_rates[2]) + (bds_rates[0] * E_t)
-            curm[j, j] = diag
+        for j in range(nstates):
+            curm[j][j] = -np.add.reduce(curm[j])
 
         curM = expm(curm * dt)
         return curM
-
 
     def calc_m_mats(self, double dt, lam_mat.lam_mat lam_mats, double[:] bds_rates, int max_states = 7):
         cdef double[:,:,:] mats = np.zeros((int(max_states)-1,int(2**max_states),int(2**max_states)),dtype=np.double)

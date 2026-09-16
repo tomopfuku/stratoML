@@ -1,3 +1,4 @@
+import argparse
 import sys
 import node
 import tree_reader,read_fasta,tree_utils,stratlike,mfc
@@ -6,20 +7,27 @@ import qmat
 from scipy.optimize import minimize
 import time
 
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--trees", required=True, help="Input Newick tree file.")
+    parser.add_argument("--traits", required=True, help="Trait FASTA file.")
+    parser.add_argument("--strat-data", required=True, help="Stratigraphic data file.")
+    parser.add_argument("--strat-model", required=True, help="Stratigraphic model.")
+    parser.add_argument("--morph-model", required=True, help="Morphologic model.")
+    return parser.parse_args(argv)
+
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
-        print("usage: "+ sys.argv[0]+ " <newick> <trait fasta file> <stratigraphic data> <stratigraphic model> <morphologic model>")
-        sys.exit()
+    args = parse_args()
     
-    traits,ss = read_fasta.read_fasta(sys.argv[2])
+    traits, ss = read_fasta.read_fasta(args.traits)
     retraits  = read_fasta.recode_poly_traits(traits,ss)
 
    
-    for line in open(sys.argv[1],"r"):
+    for line in open(args.trees,"r"):
         nwk = line.strip().split()[-1]
         tree = tree_reader.read_tree_string(nwk)
 
-        tree_utils.map_strat_to_tree(tree,sys.argv[3])    
+        tree_utils.map_strat_to_tree(tree,args.strat_data)    
         #stratlike.calibrate_brlens_strat(tree,0.3)
         tree_utils.map_tree_disc_traits(tree,retraits,ss)
         tree_utils.fix_obs_lv(tree) 
@@ -46,8 +54,8 @@ if __name__ == "__main__":
         #print(aic,traitll,bdsll)
         print(aic,nwk)
         #print("TIME OPTIMIZING",t2-t1)
-        tree_utils.tree_search4(tree,ss,qmats,"hr97",False)
-
+        #tree_utils.tree_search4(tree,ss,qmats,"hr97",False)
+        tree_utils.tree_search3(tree,ss,qmats,"hr97",False)
 
         """
         res_st = minimize(stratlike.poisson_neg_ll,x0=np.array([1.0]),args=(tree),method="Nelder-Mead")
@@ -63,6 +71,6 @@ if __name__ == "__main__":
         nparam += float(len([n for n in tree.iternodes()]) - 1)
         aic = (2. * nparam) - (2. * tree_ll) 
         print("AIC",aic)
-        #aic = tree_utils.single_tree_aic(tree,ss,sys.argv[4],sys.argv[5])
+        #aic = tree_utils.single_tree_aic(tree,ss,args.strat_model,args.morph_model)
         #print(aic,tree.get_newick_repr()+";")
         """

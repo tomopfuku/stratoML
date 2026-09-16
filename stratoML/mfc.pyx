@@ -16,12 +16,6 @@ import spltmat as sm
 import buddmat as bm
 import stratlike
 import tree_utils
-#from scipy.optimize import minimize
-#from cython.parallel import prange
-#@cython.boundscheck(False)
-#@cython.wraparound(False)
-#@cython.locals(i=cython.int, x=cython.double)
-# cython: declare_variables=True
 
 #@cython.wraparound(False)
 #@cython.boundscheck(False)
@@ -386,6 +380,7 @@ cdef budd_like_marg(node.Node n, qmat.Qmat qmats, long[:] ss):
 def calc_midpoint_ll(node.Node n, qmat.Qmat qmats, double dt, long[:] ss):
     cdef int cur_k
     cdef double [:, :] pmat
+    # cdef double[:, :, :] pmats1
     cdef list pmat_cache = [None] * 8
     cdef object cached_p
 
@@ -403,7 +398,7 @@ def calc_midpoint_ll(node.Node n, qmat.Qmat qmats, double dt, long[:] ss):
         calc_midpoint_ll_single_trait(n, pmat, cur_k, chari)
 
 def calc_midpoint_ll_single_trait(node.Node n, double[:, :] pmat, int cur_k, int chari):
-    #cdef double[:,:] pmat
+    # cdef double[:,:] pmat
     cdef double[:] last_like#, all_marg
     cdef int i, j, nstates #, chari, curk
     cdef double tr_prob, last_like_val, cond_prob, marg_prob 
@@ -436,7 +431,7 @@ def calc_midpoint_ll_single_trait(node.Node n, double[:, :] pmat, int cur_k, int
 
 cdef budd_loglike_single_trait_marg(node.Node n, node.Node ch, double[:,:] p1, double[:,:] p2, int cur_k, int chari): #, double desc_weight):
     cdef double scen_cond_like,scenario_like, ana_cond_like, weight, ana_prob, marg_prob, dt, traitll, stateprob, traitprob, prev_time, allstprob = 0.0
-    #cdef double[:,:] p1, p2
+    # cdef double[:,:] p1, p2
     cdef double[:] chd_tr, par_tr, ana_tr, anc_marg, miss_tr
     cdef long[:,:] cur_scen
     cdef long[:] inher, ancsts

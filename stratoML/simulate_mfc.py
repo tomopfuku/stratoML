@@ -1,3 +1,4 @@
+import argparse
 import sys
 import tree_reader,tree_utils
 import node
@@ -11,8 +12,20 @@ from random import choice
 import smaps
 
 
-SUB_RATE  = 0.7
+#SUB_RATE  = 0.5
 JUMP_RATE = 0.0
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("tree")
+    parser.add_argument("stratigraphic_data")
+    parser.add_argument("num_traits", type=int)
+    parser.add_argument("max_num_states", type=int)
+    parser.add_argument("lam_sub_frac", type=float)
+    parser.add_argument("--gain-rate", type=float, default=0.1)
+    parser.add_argument("--loss-rate", type=float)
+    return parser.parse_args(argv)
 
 
 def print_memoryslice_2d(ms):
@@ -61,13 +74,14 @@ def sim_split_branch(node, qmats, ss, trait_ind = None, random_start = True):
         #print(cur_scen)
         weights = np.zeros(len(cur_scen))
         l_sub = SUB_RATE 
+        #print(l_sub)
         l_sym = 1 - l_sub
         weights[-1] = l_sym
         for w in range(len(weights)-1):
             weights[w] = l_sub / (len(weights) - 1)
         #print(weights)
-        print("SPLIT")
-        exit()
+        #print("SPLIT")
+        #exit()
         sim_scen = choices(cur_scen,k=1,weights=weights)[0]
         desc0 = sim_scen[0]
         cur_traits = [0.0] * ( 2 ** ss )
@@ -83,7 +97,7 @@ def sim_split_branch(node, qmats, ss, trait_ind = None, random_start = True):
 
 
 # this version implements a proper anagenetic model, with changes computed at each budding point
-def sim_along_branch2(node, qmats, ss, trait_ind = None, l_sub = SUB_RATE, l_jump = JUMP_RATE):
+def sim_along_branch2(node, qmats, ss, trait_ind = None, l_sub = None, l_jump = JUMP_RATE):
     if trait_ind == None:
         trait_ind = range(len(node.disc_traits))
 
@@ -108,9 +122,9 @@ def sim_along_branch2(node, qmats, ss, trait_ind = None, l_sub = SUB_RATE, l_jum
             #l_sub = SUB_RATE 
             l_sym = 1 - l_sub
             weights[-1] = l_sym
-
             for w in range(len(weights)-1):
                 weights[w] = l_sub / (len(weights) - 1)
+
         elif npar == 1:
             cur_scen = [j for j in range(len(smap)) if np.add.reduce(smap[j]) == 1]
             weights = np.zeros(len(cur_scen))
@@ -224,7 +238,7 @@ def get_invariable_traits(tree, num_traits):
     return invar
 
 
-def sim_traits_across_tree(tree,qmats,num_traits,ss):
+def sim_traits_across_tree(tree,qmats,num_traits,ss, sub_rate):
     tree_utils.sort_children_by_age(tree) 
     for n in tree.iternodes(0):
         trait_probs = np.zeros((num_traits,2 ** ss),dtype=np.double)
@@ -237,8 +251,9 @@ def sim_traits_across_tree(tree,qmats,num_traits,ss):
 
             n.budd_marginals = np.array(marginals)
 
+
         if n.istip:
-            sim_along_branch2(n, qmats, ss)
+            sim_along_branch2(n, qmats, ss, None, sub_rate)
         else:
             for i in range(len(n.children)):
                 n.children[i].index_from_parent = i
@@ -252,24 +267,24 @@ def sim_traits_across_tree(tree,qmats,num_traits,ss):
             break
         for n in tree.iternodes(0):
             if n.istip:
-                sim_along_branch2(n, qmats, ss, resim)
+                sim_along_branch2(n, qmats, ss, resim, sub_rate)
             else:
                 sim_split_branch(n, qmats, ss, resim)
         resim = get_pars_uninf(tree, num_traits)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
-        print("usage:" + sys.argv[0] + " <tree> <stratigraphic data> <num_traits> <max_num_states>")
-        sys.exit()
+    args = parse_args()
 
-    nwk = open(sys.argv[1],"r").readline()
+    SUB_RATE = args.lam_sub_frac
+    nwk = open(args.tree,"r").readline()
     tree = tree_reader.read_tree_string(nwk)
-    tree_utils.map_strat_to_tree(tree,sys.argv[2]) 
-    num_traits = int(sys.argv[3])
-    ss = int(sys.argv[4])
+    tree_utils.map_strat_to_tree(tree,args.stratigraphic_data) 
+    num_traits = args.num_traits
+    ss = args.max_num_states
 
-    qmats = qmat.Qmat(0.1,0.1)
+    loss_rate = args.gain_rate if args.loss_rate is None else args.loss_rate
+    qmats = qmat.Qmat(args.gain_rate, loss_rate)
     #for row in qmats.get_qmat(2):
     #    print(list(row))
 
@@ -279,11 +294,10 @@ if __name__ == "__main__":
     stratlike.calibrate_brlens_strat(tree,0.3)
     tree_utils.sort_children_by_age(tree) 
     
-    sim_traits_across_tree(tree,qmats,num_traits,ss)
+    sim_traits_across_tree(tree,qmats,num_traits,ss, SUB_RATE)
 
     trait_dict = get_trait_dict(tree,ss)
 
     for i in trait_dict:
         print(">"+i)
         print(" ".join(trait_dict[i]))
-

@@ -7,6 +7,7 @@ os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 os.environ.setdefault("BLIS_NUM_THREADS", "1")
 
+import argparse
 import sys
 import multiprocessing as mp
 from contextlib import contextmanager
@@ -79,9 +80,12 @@ def log_probability_worker(params):
     )
 
 
-def get_max_mcmc_workers(nwalkers):
+def get_max_mcmc_workers(nwalkers, max_threads=None):
     default_workers = min(nwalkers, os.cpu_count() or 1)
-    max_workers = os.environ.get("MCMC_MAX_THREADS", os.environ.get("MCMC_NPROCS"))
+    max_workers = max_threads
+
+    if max_workers is None:
+        max_workers = os.environ.get("MCMC_MAX_THREADS", os.environ.get("MCMC_NPROCS"))
 
     if max_workers is None:
         return default_workers
@@ -96,8 +100,8 @@ def get_max_mcmc_workers(nwalkers):
 
 
 @contextmanager
-def mcmc_pool(tree, qmats, lam_mats, ss, pqr_start, nwalkers):
-    nproc = get_max_mcmc_workers(nwalkers)
+def mcmc_pool(tree, qmats, lam_mats, ss, pqr_start, nwalkers, max_threads=None):
+    nproc = get_max_mcmc_workers(nwalkers, max_threads)
 
     if nproc == 1:
         yield None
@@ -221,35 +225,44 @@ def build_mcmc_moves():
     ]
 
 
-if __name__ == "__main__":
-    if len(sys.argv) not in (7, 8):
-        print("usage: "+ sys.argv[0]+ " <newick> <trait fasta file> <stratigraphic data> <stratigraphic model> <morphologic model> <num_gen> [previous mcmc samples csv]")
-        sys.exit()
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--trees", required=True, help="Input Newick tree file.")
+    parser.add_argument("--traits", required=True, help="Trait FASTA file.")
+    parser.add_argument("--strat-data", required=True, help="Stratigraphic data file.")
+    parser.add_argument("--strat-model", required=True, help="Stratigraphic model.")
+    parser.add_argument("--morph-model", required=True, help="Morphologic model.")
+    parser.add_argument("--generations", required=True, type=int, help="Number of MCMC generations to run.")
+    parser.add_argument("--restart", help="Previous MCMC samples CSV to restart from.")
+    parser.add_argument("--max-threads", type=int, help="Maximum number of forked worker processes.")
+    return parser.parse_args(argv)
 
-    try:
-        num_gen = int(sys.argv[6])
-    except ValueError:
-        print(f"num_gen must be an integer; received {sys.argv[6]!r}")
-        sys.exit()
+
+if __name__ == "__main__":
+    args = parse_args()
+    num_gen = args.generations
     if num_gen <= 0:
         print(f"num_gen must be positive; received {num_gen}")
         sys.exit()
+    if args.max_threads is not None and args.max_threads <= 0:
+        print(f"max-threads must be positive; received {args.max_threads}")
+        sys.exit()
 
-    restart_chain_file = sys.argv[7] if len(sys.argv) == 8 else None
+    restart_chain_file = args.restart
     
-    traits,ss = read_fasta.read_fasta(sys.argv[2])
+    traits,ss = read_fasta.read_fasta(args.traits)
     ntraits = float(len(list(traits.values())[0]) - 1)
     retraits  = read_fasta.recode_poly_traits(traits,ss)
 
     times = []
-    for line in open(sys.argv[1],"r"):
+    for line in open(args.trees,"r"):
         if line.strip() == "":
             continue
 
         nwk = line.strip().split()[-1]
         tree = tree_reader.read_tree_string(nwk)
 
-        tree_utils.map_strat_to_tree(tree,sys.argv[3])    
+        tree_utils.map_strat_to_tree(tree,args.strat_data)    
         #stratlike.calibrate_brlens_strat(tree,0.3)
         tree_utils.map_tree_disc_traits(tree,retraits,ss)
         tree_utils.sort_children_by_age(tree)
@@ -303,7 +316,7 @@ if __name__ == "__main__":
         
         # 3. Run the MCMC
         print("Running MCMC...")
-        with mcmc_pool(tree, qmats, lam_mats, ss, pqr_start, nwalkers) as pool:
+        with mcmc_pool(tree, qmats, lam_mats, ss, pqr_start, nwalkers, args.max_threads) as pool:
             mcmc_moves = build_mcmc_moves()
             if pool is None:
                 sampler = emcee.EnsembleSampler(
@@ -362,8 +375,8 @@ if __name__ == "__main__":
         else:
             df = pd.concat([previous_samples, new_df], ignore_index=True)
 
-        # Construct CSV filename from sys.argv[1]
-        output_base = sys.argv[2] 
+        # Construct CSV filename from the trait matrix path.
+        output_base = args.traits 
         csv_filename = f"{output_base}_mcmc_samples.csv"
         df.to_csv(csv_filename, index=False)
 

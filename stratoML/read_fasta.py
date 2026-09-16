@@ -66,6 +66,10 @@ def read_fasta(flnm):
         cur_k = max(curst) + 1
         if cur_k < 2:
             cur_k = 2
+        if cur_k > 5:
+            print("ERROR: too many states for trait",i,"max state",cur_k)
+            print("ONLY UP TO 6 STATES ALLOWED")
+            sys.exit()
         state_spaces.append(cur_k)
     return traits, np.array(state_spaces,dtype=int)
 

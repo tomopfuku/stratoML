@@ -1,3 +1,4 @@
+import argparse
 import sys
 import node
 import tree_reader,read_fasta,tree_utils,stratlike,mfc, glc_bd
@@ -22,23 +23,30 @@ def get_tree_length(tree):
         length += (n.lower - n.upper)
     return length
 
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--trees", required=True, help="Input Newick tree file.")
+    parser.add_argument("--traits", required=True, help="Trait FASTA file.")
+    parser.add_argument("--strat-data", required=True, help="Stratigraphic data file.")
+    parser.add_argument("--strat-model", required=True, help="Stratigraphic model.")
+    parser.add_argument("--morph-model", required=True, help="Morphologic model.")
+    return parser.parse_args(argv)
+
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
-        print("usage: "+ sys.argv[0]+ " <newick> <trait fasta file> <stratigraphic data> <stratigraphic model> <morphologic model>")
-        sys.exit()
+    args = parse_args()
     
-    traits,ss = read_fasta.read_fasta(sys.argv[2])
+    traits,ss = read_fasta.read_fasta(args.traits)
     ntraits = float(len(list(traits.values())[0]) - 1)
     retraits  = read_fasta.recode_poly_traits(traits,ss)
 
     times = []
-    for line in open(sys.argv[1],"r"):
+    for line in open(args.trees,"r"):
         if line.strip() == "":
             continue
 
         nwk = line.strip().split()[-1]
         tree = tree_reader.read_tree_string(nwk)
-        tree_utils.map_strat_to_tree(tree,sys.argv[3])    
+        tree_utils.map_strat_to_tree(tree,args.strat_data)    
         #stratlike.calibrate_brlens_strat(tree,0.3)
         tree_utils.map_tree_disc_traits(tree,retraits,ss)
         tree_utils.sort_children_by_age(tree)
@@ -144,6 +152,7 @@ if __name__ == "__main__":
         print("GAIN:", gainr)
         print("LOSS:", lossr)
         print("LAMBDA SUB:", lsub)
+        print("cladogenetic loss ratio:", lsub / (lsub + lossr))
         print("no jump AIC:",m1_aic)
 
         res_no_clado = differential_evolution(

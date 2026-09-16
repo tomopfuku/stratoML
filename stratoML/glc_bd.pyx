@@ -61,10 +61,10 @@ cdef calc_M_matrix(double dt, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, double[
 
 cdef calc_prob_surv(double dt, double[:] bds_rates):
     cdef double E_t, p_zero_desc, p_surv, surv_scalar 
-    #p_zero_desc = bd.prob_n_obs_desc(bds_rates[0], bds_rates[1], bds_rates[2], 0, dt)
-    E_t = bd.calc_extinction_prob_eq(bds_rates[0], bds_rates[1], bds_rates[2])
-    p_zero_desc = math.exp(-(bds_rates[0] * ( 1.0 - E_t ) * dt))
-    p_surv = math.exp(-bds_rates[1] * dt)
+    # p_zero_desc is modelling P(0 obs desc) by modelling "observed origination" with rate lambda * P(observing a taxon)
+    p_obs = bd.prob_pres_taxa(bds_rates[0], bds_rates[1], bds_rates[2])
+    p_zero_desc = math.exp(-(bds_rates[0] * ( p_obs ) * dt)) # decide if i want to switch back to prob_n_obs_desc
+    p_surv = math.exp(-bds_rates[1] * dt) 
     surv_scalar = p_zero_desc * p_surv
     return surv_scalar
 
@@ -111,6 +111,64 @@ def segment_branch(double[:] times, double[:] strat_range):
 
 cdef calc_like_to_base(double[:, :] last_tr, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long[:] ss, double[:] bds_rates, double[:] seg_durations, int[:] seg_models):
     cdef Py_ssize_t i, chari, cur_k, nstates, j, k
+    cdef double cur_dt, val
+    cdef int model_type
+    cdef Py_ssize_t nseg = seg_durations.shape[0]
+    cdef Py_ssize_t nch = ss.shape[0]
+    cdef Py_ssize_t ncol = last_tr.shape[1]
+    cdef double[:, :] working_tr = np.empty((nch, ncol), dtype=np.float64)
+    cdef double[:] D_anc_buffer = np.empty(ncol, dtype=np.float64)
+    cdef double[:, :] curp
+    cdef object cached_p
+    cdef list pmat_cache
+
+    # Copy last_tr to working_tr
+    for chari in range(nch):
+        for j in range(ncol):
+            working_tr[chari, j] = last_tr[chari, j]
+
+    for i in range(nseg):
+        cur_dt = seg_durations[i]
+        model_type = seg_models[i]
+        pmat_cache = [None] * 8
+
+        #if model_type == 0:
+        #    p_surv = calc_prob_surv(cur_dt, bds_rates)
+
+        for chari in range(nch):
+            cur_k = ss[chari]
+            nstates = 1 << cur_k  # 2 ** cur_k
+
+            if cur_k == 1:
+                continue
+
+            cached_p = pmat_cache[cur_k]
+            if cached_p is None:
+                if model_type == 0:
+                    curp = qmats.calc_single_p_mat(cur_dt, cur_k)
+                else:
+                    curp = qmats.calc_single_m_mat(cur_dt, lam_mats, bds_rates, cur_k)
+                pmat_cache[cur_k] = curp
+            else:
+                curp = cached_p
+
+            for j in range(nstates):
+                val = 0.0
+                for k in range(nstates):
+                    val += curp[j, k] * working_tr[chari, k]
+                D_anc_buffer[j] = val
+
+            for j in range(ncol):
+                if j < nstates:
+                    working_tr[chari, j] = D_anc_buffer[j]
+                else:
+                    working_tr[chari, j] = 0.0
+
+    return np.asarray(working_tr)
+
+"""
+cdef calc_like_to_base_FULLBDS(double[:, :] last_tr, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long[:] ss, double[:] bds_rates, double[:] seg_durations, int[:] seg_models):
+    cdef Py_ssize_t i, chari, cur_k, nstates, j, k
     cdef double cur_dt, p_surv, val
     cdef int model_type
     cdef Py_ssize_t nseg = seg_durations.shape[0]
@@ -137,7 +195,7 @@ cdef calc_like_to_base(double[:, :] last_tr, qmat.Qmat qmats, lam_mat.lam_mat la
 
         for chari in range(nch):
             cur_k = ss[chari]
-            nstates = 1 << cur_k  # Faster than 2 ** cur_k
+            nstates = 1 << cur_k  # 2 ** cur_k
 
             if cur_k == 1:
                 continue
@@ -160,7 +218,6 @@ cdef calc_like_to_base(double[:, :] last_tr, qmat.Qmat qmats, lam_mat.lam_mat la
                     val *= p_surv
                 D_anc_buffer[j] = val
 
-            # Use slice assignment for speed
             for j in range(ncol):
                 if j < nstates:
                     working_tr[chari, j] = D_anc_buffer[j]
@@ -168,6 +225,7 @@ cdef calc_like_to_base(double[:, :] last_tr, qmat.Qmat qmats, lam_mat.lam_mat la
                     working_tr[chari, j] = 0.0
 
     return np.asarray(working_tr)
+"""
 
 cdef calc_like_to_base_OLD(double[:, :] last_tr, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long[:] ss, double[:] bds_rates, double[:] seg_durations, int[:] seg_models):
     for i, cur_dt in enumerate(seg_durations):
@@ -231,31 +289,20 @@ def budd_node_join(double[:,:] anc_ll,
         if cur_k == 1:
             continue
             
-        nstates = 1 << cur_k  # Efficient way to do 2**cur_k
+        nstates = 1 << cur_k 
         
-        # Get the matrix as a memoryview to avoid Python overhead
-        # Assuming get_ratemat returns something that can be viewed as double[:,:]
         mat_view = lam_mats.get_ratemat(cur_k)
         
-        # Manually perform Matrix-Vector multiplication and element-wise join
-        # This replaces: (Mat @ Base) * Anc
         for i in range(nstates):
             dot_product_val = 0.0
             for j in range(nstates):
                 dot_product_val += mat_view[i, j] * base_ll_ch[chari, j]
             
-            # Combine the result with anc_ll and store directly in the output
             budd_ll_ch[chari, i] = dot_product_val * anc_ll[chari, i]
 
     return budd_ll_ch
 
-cdef void budd_node_join_scale_into(double[:,:] anc_ll,
-                                    double[:, :] base_ll_ch,
-                                    lam_mat.lam_mat lam_mats,
-                                    long[:] ss,
-                                    double[:,:,:] dest_all,
-                                    double[:,:] scaling_factors,
-                                    int dest_i):
+cdef void budd_node_join_scale_into(double[:,:] anc_ll, double[:, :] base_ll_ch, lam_mat.lam_mat lam_mats,long[:] ss, double[:,:,:] timeslice_lv, double[:,:] scaling_factors, int ch_index):
     cdef int n_chars = ss.shape[0]
     cdef int chari, i, j, cur_k, nstates, ncol = base_ll_ch.shape[1]
     cdef double[:,:] mat_view
@@ -267,9 +314,9 @@ cdef void budd_node_join_scale_into(double[:,:] anc_ll,
         nstates = 1 << cur_k
 
         if cur_k == 1:
-            scaling_factors[dest_i][chari] = 0.0
+            scaling_factors[ch_index][chari] = 0.0
             for i in range(ncol):
-                dest_all[dest_i][chari][i] = 0.0
+                timeslice_lv[ch_index][chari][i] = 0.0
             continue
 
         mat_view = lam_mats.get_ratemat(cur_k)
@@ -284,16 +331,16 @@ cdef void budd_node_join_scale_into(double[:,:] anc_ll,
             if joined_val > max_val:
                 max_val = joined_val
 
-        scaling_factors[dest_i][chari] = max_val
+        scaling_factors[ch_index][chari] = max_val
         if max_val == 0.0:
             for i in range(ncol):
-                dest_all[dest_i][chari][i] = 0.0
+                timeslice_lv[ch_index][chari][i] = 0.0
         else:
             for i in range(ncol):
                 if i < nstates:
-                    dest_all[dest_i][chari][i] = row[i] / max_val
+                    timeslice_lv[ch_index][chari][i] = row[i] / max_val
                 else:
-                    dest_all[dest_i][chari][i] = 0.0
+                    timeslice_lv[ch_index][chari][i] = 0.0
 
 def budd_node_join_UNOPTIMIZED(double[:,:] anc_ll, double[:, :] base_ll_ch, lam_mat.lam_mat lam_mats, long[:] ss, bint rescale = False):
     cdef double[:,:] budd_ll_ch = np.zeros_like(base_ll_ch) 
@@ -457,7 +504,7 @@ cdef budd_like_marg(node.Node n, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long
         else:
             if past_mid == False:
                 ch_ind = num_ch - 1 - i
-                ch = n.children[ch_ind] ## NEED TO FIX THIS INDEXING IMMEDIATELY. N.CHILDREN IS SORTED OLDEST TO NEWEST WHICH IS OPPOSITE OF times
+                ch = n.children[ch_ind] ## CHECK IF THIS MESSAGE IS STILL VALID. I THINK WE'RE GOOD.: NEED TO FIX THIS INDEXING IMMEDIATELY. N.CHILDREN IS SORTED OLDEST TO NEWEST WHICH IS OPPOSITE OF times
                 #ch = rev_ch[i]
             else: # need to do the node join
                 ch_ind = num_ch - i

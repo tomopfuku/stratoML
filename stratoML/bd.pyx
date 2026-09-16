@@ -2,12 +2,16 @@
 import math
 import numpy as np
 
+# prob of failing to observe a taxon or any of its descendants from Didier 2017 via Wagner 2019
+def calc_extinction_prob_eq(lam, mu, psi):
+    cdef double top, bot
+    top = (lam + mu + psi) - np.sqrt(( lam + mu + psi) ** 2.0 - ( 4.0 * lam * mu ) )
+    bot = 2.0 * lam
+    return top / bot
+
 # prob of observing a _clade_ of unknown size from Didier 2017 via Wagner 2019
 cpdef double prop_pres_taxa(double b,double d,double r): 
-    cdef double top,bot
-    top = (b+d+r) - math.sqrt((b+d+r)**2 - (4.0*b*d))
-    bot = 2.0 * b
-    return 1.0 - (top / bot)
+    return 1.0 - calc_extinction_prob_eq(b,d,r)
 
 # Pp given by Solow and Smith 1996 via Foote 1997
 cpdef double prob_species_pres(double q, double r):
@@ -83,8 +87,6 @@ def expect_gap(r):
     expect = 1.0 / r
     return expect
 
-
-
 def calc_mean_extinction_prob(lam, mu, psi, t_start, t_end):
     D = np.sqrt((lam + mu + psi)**2 - 4*lam*mu)
     x1 = (lam + mu + psi - D) / (2 * lam)
@@ -111,9 +113,5 @@ def calc_extinction_prob(lam, mu, psi, t):
     E_t = num / denom
     return E_t
 
-def calc_extinction_prob_eq(lam, mu, psi):
-    D = np.sqrt((lam + mu + psi)**2 - 4*lam*mu)
-    
-    x1 = (lam + mu + psi - D) / (2 * lam)
-    E_t = x1
-    return E_t
+
+

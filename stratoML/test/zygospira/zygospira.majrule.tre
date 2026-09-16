@@ -1,0 +1,40 @@
+#NEXUS 
+
+Begin trees;  [Treefile saved Wed Jul  1 14:07:48 2026]
+[!
+>Consensus of 88 trees
+>
+>Source of trees from which consensus(es) calculated...
+>Heuristic search settings:
+>  Optimality criterion = parsimony
+>    Character-status summary:
+>      Of 37 total characters:
+>        All characters are of type 'unord'
+>        All characters have equal weight
+>        2 characters are constant (proportion = 0.0540541)
+>        8 variable characters are parsimony-uninformative
+>        Number of parsimony-informative characters = 27
+>    Gaps are treated as "missing"
+>    Multistate taxa interpreted as polymorphism
+>  Starting tree(s) obtained via stepwise addition
+>    Addition sequence: random
+>    Number of replicates = 1000
+>    Starting seed = generated automatically
+>    Number of trees held at each step = 1
+>  Branch-swapping algorithm: tree-bisection-reconnection (TBR) with reconnection limit = 8
+>    Steepest descent option not in effect
+>  'Maxtrees' setting = 200 (will not be increased)
+>  Branches collapsed (creating polytomies) if maximum branch length is zero
+>  'MulTrees' option in effect
+>  No topological constraints in effect
+>  Trees are unrooted
+>
+>Heuristic search completed
+>  Total number of rearrangements tried = 250424396
+>  Score of best tree(s) found = 319
+>  Number of trees retained = 88
+>  Time used = 36.82 sec (CPU time = 36.78 sec)
+]
+	tree Strict = [&U] (Zygospira_concentrica,((Zygospira_multicostata,Anazyga_putilla),Anazyga_calhounensis,Zygospira_modesta,Zygospira_sulcata,(Zygospira_kentuckiensis,((Catazyga_headi,Catazyga_cartieri),Catazyga_homeospiroides,Catazyga_anticostiensis,Catazyga_arcana)),Zygospira_resupinata,Zygospira_cincinnatiensis,(Anazyga_circularis,Anazyga_lebanonensis),Anazyga_recurvirostra,Anazyga_variabilis,Catazyga_hicksi),(Protozyga_exigua,Catazyga_uphami));
+	tree MajRule = [&U] (Zygospira_concentrica,(((((Zygospira_multicostata,Anazyga_putilla)100,(Anazyga_calhounensis,Zygospira_resupinata)61.364)61.364,((Zygospira_modesta,(Zygospira_kentuckiensis,((Catazyga_headi,Catazyga_cartieri)100,Catazyga_homeospiroides,Catazyga_anticostiensis,Catazyga_arcana)100)100)63.636,Anazyga_recurvirostra)54.545,(Anazyga_circularis,Anazyga_lebanonensis)100,Anazyga_variabilis)61.364,Zygospira_sulcata)61.364,(Zygospira_cincinnatiensis,Catazyga_hicksi)61.364)100,(Protozyga_exigua,Catazyga_uphami)100)0;
+end;
