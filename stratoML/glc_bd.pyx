@@ -606,6 +606,210 @@ def calc_bud_root_ll(node.Node tree, qmat.Qmat qmats, long[:] ss):
         #print(chari,list(root_partials[chari]))
     return root_partials
 
+
+
+def compute_glc_ASRs(node.Node tree, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long[:] ss, double[:] bds_rates):
+    cdef node.Node n, ch
+    cdef double[:,:] root_marg_likes, curlike, p1, prev_marg
+    cdef double[:] plikes, sum_log_sf, curvec
+    cdef double lasttime, dt, cond, anc, marg
+    cdef int i, j, count, cur_k
+
+    mfc3_treell(tree, qmats, lam_mats, ss, bds_rates, True) # propogate backward conditional likelihoods
+    if tree.istip == False:
+        if len(tree.timeslice_lv) > 1:
+            print("root is bifurcating but there is more than one likelihood vector. something is wrong here.")
+            print("error in `mfc.compute_mfc2_ASRs()`")
+            sys.exit(0)
+
+        root_marg_likes = tree.timeslice_lv[0]
+    else:
+        root_marg_likes = calc_bud_root_ll(tree, qmats, ss)
+
+    root_marg_likes = mfc.normalize_root_marg_likes(root_marg_likes, ss, "flat")
+    
+    if tree.istip == False:
+        tree.timeslice_lv[0] = root_marg_likes 
+        splitting_forward_probs(tree, qmats, lam_mats, ss)
+    else: # TODO: need to come back and fix case where root is not bifurcating but is a sampled anc
+        print("CAUTION: CASE WHERE ROOT IS SAMPLED ANC WITH BUDD DESCENDANTS IS NOT WORKING RIGHT YET")
+        #if tree.children[0].lower > tree.midpoint:
+            #calc_ASR_down_budd_node(tree, qmats, ss, root_marg_likes)
+
+    for n in tree.iternodes(0):
+        if n == tree:
+            continue
+
+        if n.istip == False:
+            splitting_forward_probs(n, qmats, lam_mats, ss)
+        else:
+            #prev_marg = n.parent.timeslice_lv[n.parent_lv_index]
+            sys.exit()
+            #calc_ASR_down_budd_node(n, qmats, ss)
+
+def splitting_forward_probs(node.Node n, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long[:] ss):
+    cdef int i, cur_k
+    cdef double dt1, dt2
+    cdef double[:,:] p1, p2
+    cdef list pmats1, pmats2
+    cdef object cached_p
+    cdef node.Node ch
+
+    ch = n.children[0]
+    dt1 = mfc.get_child_dt(ch)
+
+    ch = n.children[1]
+    dt2 = mfc.get_child_dt(ch)
+
+    pmats1 = [None] * 8
+    pmats2 = [None] * 8
+
+    for i in range(1,len(n.timeslice_lv[0])): # i is a trait index
+        cur_k = ss[i]
+        if cur_k == 1:
+            continue
+
+        cached_p = pmats1[ss[i]]
+        if cached_p is None:
+            p1 = qmats.calc_single_p_mat(dt1, ss[i])
+            pmats1[ss[i]] = p1
+        else:
+            p1 = cached_p
+
+        cached_p = pmats2[ss[i]]
+        if cached_p is None:
+            p2 = qmats.calc_single_p_mat(dt2, ss[i])
+            pmats2[ss[i]] = p2
+        else:
+            p2 = cached_p
+
+        splitting_forward_probs_single_trait(n, p1, p2, ss[i], i, lam_mats)
+
+
+
+def splitting_forward_probs_single_trait(node.Node n, double[:,:] p1, double[:,:] p2, int cur_k, int chari, lam_mat.lam_mat lam_mats):
+    cdef double traitprob, curp1, curp2, weight, dt, anc_prob, cum_anc_prob
+    cdef long[:] spltanc 
+    cdef int ti, tj, anc1, anc2, traitprob_i, nscenarios
+    cdef double[:] ch1_tr,ch2_tr
+    cdef long[:,:,:] cur_scen
+    cdef node.Node ch
+
+    if n.istip or len(n.children) != 2:
+        print("trying to calc forward splitting cladogenetic probs on non-splitting node")
+        print("problem in `splitting_forward_probs_single_trait()`")
+        sys.exit()
+
+    mat_view = lam_mats.get_ratemat(cur_k)
+    print("LAMMAT")
+    for i in range(len(mat_view)):
+        print(list(mat_view[i]))
+
+
+    cur_scen = sm.get_spltmat(cur_k)
+    print("\n\nCURSCEN")
+
+    for i in range(len(cur_scen)):
+        print(list(cur_scen[i]))
+
+    
+    ch = n.children[0]
+    ch1_tr = ch.timeslice_lv[-1][chari]
+ 
+    ch = n.children[1]
+    ch2_tr = ch.timeslice_lv[-1][chari]
+
+    forward_probs1 = np.zeros(len(ch1_tr)) 
+    forward_probs2 = np.zeros(len(ch2_tr)) 
+    print(list(ch1_tr))
+    print(list(ch1_tr[0:2<<cur_k]))
+    print(list(n.scaling_factors[0]))
+    for ch_i in range(len(n.children)):
+        ch = n.children[ch_i]
+        ch1_tr = ch.timeslice_lv[-1][chari]
+
+
+    for traitprob_i in range(len(ch1_tr)):
+        traitprob = ch1_tr[traitprob_i]
+        if traitprob < 0.00005:
+            continue
+
+        print("ANCPROB:")
+        print(list(n.timeslice_lv[0][chari][0:2<<cur_k]))
+        print(traitprob)
+        exit()
+        for ti in range(len(cur_scen)):  # each ti is a state present in the ancestor BEFORE cladogenesis
+            if ti == 0:
+                continue
+            anc_prob = n.timeslice_lv[0][chari][ti]
+            nscenarios = 0
+            for tj in range(len(cur_scen[ti])):
+                spltanc = cur_scen[ti][tj]
+                if spltanc[0] == 0: #np.add.reduce(spltanc) == 0:
+                    break
+                nscenarios += 1
+
+
+            cum_anc_prob = 0.0
+            weight = 1.0 / (float(nscenarios) * float(len(cur_scen)-1))
+
+            for tj in range(len(cur_scen[ti])):
+                spltanc = cur_scen[ti][tj]
+                if spltanc[0] == 0: #np.add.reduce(spltanc) == 0:
+                    break
+                anc1 = spltanc[0]
+                
+                if traitprob == 0.0:
+                    continue
+                
+                curp1 = p1[anc1][traitprob_i] #* traitprob
+                cum_anc_prob += curp1 * weight
+            cum_anc_prob *= n.timeslice_lv[0][chari][ti]
+            forward_probs1[traitprob_i] += cum_anc_prob
+
+    for traitprob_i in range(len(ch2_tr)):
+        traitprob = ch2_tr[traitprob_i]
+        if traitprob == 0.0:
+            continue
+
+        for ti in range(len(cur_scen)):  # each ti is a state present in the ancestor BEFORE cladogenesis
+            anc_prob = n.timeslice_lv[0][chari][ti]
+            if ti == 0:
+                continue
+            nscenarios = 0
+            for tj in range(len(cur_scen[ti])):
+                spltanc = cur_scen[ti][tj]
+                if spltanc[0] == 0: #np.add.reduce(spltanc) == 0:
+                    break
+                nscenarios += 1
+
+            cum_anc_prob = 0.0
+            weight = 1.0 / (float(nscenarios) * float(len(cur_scen)-1))
+
+            for tj in range(len(cur_scen[ti])):
+                spltanc = cur_scen[ti][tj]
+                if spltanc[1] == 0: #np.add.reduce(spltanc) == 0:
+                    break
+             
+                anc2 = spltanc[1]
+                curp2 = p2[anc2][traitprob_i] #* traitprob
+                cum_anc_prob += curp2 * weight
+            cum_anc_prob *= anc_prob 
+            forward_probs2[traitprob_i] += cum_anc_prob
+
+    forward_probs1 = forward_probs1 * ch1_tr
+    forward_probs2 = forward_probs2 * ch2_tr
+    curp1 = sum(forward_probs1)
+    curp2 = sum(forward_probs2) # just reusing the variable curp2 to store sum of each vec to normalize 
+    for ti in range(len(forward_probs1)):
+        forward_probs1[ti] = forward_probs1[ti] / curp1
+        forward_probs2[ti] = forward_probs2[ti] / curp2
+
+    n.children[0].timeslice_lv[-1][chari] = forward_probs1
+    n.children[1].timeslice_lv[-1][chari] = forward_probs2
+
+
+
 def mfc3_treell(node.Node tree, qmat.Qmat qmats, lam_mat.lam_mat lam_mats, long[:] ss, double[:] bds_rates, bint asc = True):
     cdef double treell, asc_treell, plike, flat_prior, invarll, sum_plikes, sublike
     cdef double[:,:] root_marg_likes

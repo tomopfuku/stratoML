@@ -104,3 +104,10 @@ no cladogenesis AIC weight: 0.2163271125366973
 ### SIMULATIONS
 
 python run_sim_likelihood_batch.py --tree best_mfc2.tre --ranges micrasteridae-stratigraphy_abs.stag.csv
+
+python run_no_clado_false_positive_batch.py --tree best_mfc2.tre --ranges micrasteridae-stratigraphy_abs.stag.csv --num-sims 100
+
+
+
+
+python ../../main_glc_asr.py best_mfc2.tre micrasteridae-character_matrix.fa micrasteridae-stratigraphy_abs.stag.csv hr97 glc

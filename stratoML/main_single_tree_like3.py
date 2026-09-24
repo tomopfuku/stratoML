@@ -7,7 +7,7 @@ import qmat
 import lam_mat
 from scipy.optimize import minimize
 from scipy.optimize import basinhopping
-from scipy.optimize import differential_evolution        
+from scipy.optimize import differential_evolution
 import time
 import math
 
@@ -129,12 +129,12 @@ if __name__ == "__main__":
             glc_bd.evaluate_m_l3,
             bounds=((1e-5, 5.0), (1e-5, 5.0), (1e-5, 1.0)),
             args=(tree, qmats, lam_mats, ss, np.array(pqr_start)),
-            strategy='best1bin', # Standard reliable strategy
-            popsize=15,          # Total candidates = popsize * parameters
-            mutation=(0.5, 1),   # Exploration vs exploitation
+            strategy='best1bin', 
+            popsize=15,          
+            mutation=(0.5, 1),   
             recombination=0.7,
-            tol=0.01,            # Relative tolerance for convergence
-            workers=1           # USES ALL CORES (This is the speed booster!)
+            tol=0.01,            
+            workers=1           
         )
         #res_tr = minimize(glc_bd.evaluate_m_l3,x0=np.array(start_rates),args=(tree,qmats,lam_mats,ss, np.array(pqr_start)),method="Powell")
         m1_ll = -res_tr.fun
@@ -153,7 +153,7 @@ if __name__ == "__main__":
         print("LOSS:", lossr)
         print("LAMBDA SUB:", lsub)
         print("cladogenetic loss ratio:", lsub / (lsub + lossr))
-        print("no jump AIC:",m1_aic)
+        print("no jump AIC:",m1_bic)
 
         res_no_clado = differential_evolution(
             glc_bd.evaluate_m_l3_no_clado,
@@ -169,12 +169,18 @@ if __name__ == "__main__":
         no_clado_k = 2
         no_clado_ll = -res_no_clado.fun
         no_clado_aic = (2. * no_clado_k) - (2. * no_clado_ll)
+        no_clado_bic = (no_clado_k * math.log(N)) - (2. * no_clado_ll)
 
         print("no cladogenesis params:", res_no_clado.x)
-        print("no cladogenesis AIC:", no_clado_aic)
-        min_aic = min(m1_aic, no_clado_aic)
-        clado_weight_unnorm = math.exp(-0.5 * (m1_aic - min_aic))
-        no_clado_weight_unnorm = math.exp(-0.5 * (no_clado_aic - min_aic))
+        print("no cladogenesis AIC:", no_clado_bic)
+        #min_aic = min(m1_aic, no_clado_aic)
+        #clado_weight_unnorm = math.exp(-0.5 * (m1_aic - min_aic))
+        #no_clado_weight_unnorm = math.exp(-0.5 * (no_clado_aic - min_aic))
+
+        min_bic = min(m1_bic, no_clado_bic)
+        clado_weight_unnorm = math.exp(-0.5 * (m1_bic - min_bic))
+        no_clado_weight_unnorm = math.exp(-0.5 * (no_clado_bic - min_bic))
+
         weight_sum = clado_weight_unnorm + no_clado_weight_unnorm
         clado_aic_weight = clado_weight_unnorm / weight_sum
         no_clado_aic_weight = no_clado_weight_unnorm / weight_sum
@@ -210,12 +216,12 @@ if __name__ == "__main__":
             glc_bd.evaluate_m_l_jump,
             bounds=((1e-5, 5.0), (1e-5, 5.0), (1e-5, 1.0/10.), (1e-5, 1.0/10.)),
             args=(tree, qmats, lam_mats, ss, np.array(pqr_start)),
-            strategy='best1bin', # Standard reliable strategy
-            popsize=15,          # Total candidates = popsize * parameters
-            mutation=(0.5, 1),   # Exploration vs exploitation
+            strategy='best1bin', 
+            popsize=15,          
+            mutation=(0.5, 1),   
             recombination=0.7,
-            tol=0.01,            # Relative tolerance for convergence
-            workers=1           # USES ALL CORES (This is the speed booster!)
+            tol=0.01,
+            workers=1
         )
 
 
